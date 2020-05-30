@@ -272,9 +272,6 @@ when isMainModule:
     timer "blame it on the goats":
       makeGoats(objects)
 
-    timer "read goats hash":
-      h = hash(vals)
-
     const
       fn = "goats"
     when true:
@@ -308,15 +305,17 @@ when isMainModule:
             #echo "read ", x
           ss.close
 
-      when true:
+      timer "read goats again and check hashes":
         var q: seq[MyType]
-        q.setLen(vals.len)
         fh = openFileStream(fn, fmRead)
         while not fh.atEnd:
           var x = MyType()
           fh.readThing x
           q.add x
+          let i = q.high
+          if hash(q[i]) != hash(vals[i]):
+            echo "index ", i
+            echo "wrote: ", vals[i]
+            echo " read: ", q[i]
+            break
         fh.close
-
-        timer "check hash of goats":
-          assert hash(q) == h
