@@ -113,16 +113,17 @@ template readComplex[T: object | tuple](s: var Serializer; o: var T) =
   for k, v in fieldPairs(o):
     s.read v
 
-template audit(o: typed; p: typed): Hash =
-  when defined(release):
-    0
-  else:
-    when compiles(hash(o)):
-      hash(o)
-    elif compiles(hash(o[])):
-      hash(o[])
+when not defined(release):
+  template audit(o: typed; p: typed): Hash =
+    when defined(release):
+      0
     else:
-      hash(p)
+      when compiles(hash(o)):
+        hash(o)
+      elif compiles(hash(o[])):
+        hash(o[])
+      else:
+        hash(p)
 
 proc write(s: var Serializer; o: string) =
   write(s.stream, len(o))   # put the str len
