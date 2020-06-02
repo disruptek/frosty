@@ -88,10 +88,10 @@ template timer(name: string; body: untyped): untyped =
     echo e.msg
     echo name, " failed after ", cpuTime() - clock
 
-const objects = 50_000
+const objects = 7_500
 echo "will test against " & $objects & " units"
 
-when false: #defined(danger):
+when defined(danger):
   import std/uri
 
   import criterion
@@ -183,7 +183,7 @@ else:  # ^^ danger      vv no danger
   if not fileExists(fn):
     var fh = openFileStream(fn, fmWrite)
     timer "write some goats":
-      freeze(fh, vals)
+      freeze(vals, fh)
     close fh
     echo "file size in meg: ", fileSize(fn)
   else:
