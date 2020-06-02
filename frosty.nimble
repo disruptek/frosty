@@ -1,4 +1,4 @@
-version = "0.0.3"
+version = "0.0.4"
 author = "disruptek"
 description = "marshal native Nim objects via streams, channels"
 license = "MIT"

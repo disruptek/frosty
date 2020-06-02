@@ -48,27 +48,15 @@ proc read(s: var Serializer; o: var string)
 when enableLists:
   import std/lists
 
-  template makeListSupportDeclarations(name: untyped): untyped =
-    proc write[T](s: Serializer; o: name[T])
-    proc read[T](s: Serializer; o: var name[T])
-
-  proc write[T](s: Serializer; o: SinglyLinkedList[T])
-  proc read[T](s: Serializer; o: var SinglyLinkedList[T])
-  proc write[T](s: Serializer; o: DoublyLinkedList[T])
-  proc read[T](s: Serializer; o: var DoublyLinkedList[T])
-  proc write[T](s: Serializer; o: SinglyLinkedRing[T])
-  proc read[T](s: Serializer; o: var SinglyLinkedRing[T])
-  proc write[T](s: Serializer; o: DoublyLinkedRing[T])
-  proc read[T](s: Serializer; o: var DoublyLinkedRing[T])
-
   template makeListSupport(name: untyped): untyped =
-    when not compiles(len(name)):
-      proc len(o: name): int {.used.} =
-        for item in items(o):
-          inc result
-
     proc write[T](s: var Serializer; o: name[T]) =
-      var l = len(o)           # type inference
+      when compiles(len(o)):
+        var l = len(o)           # type inference
+      else:
+        var l = 0
+        for item in items(o):
+          inc l
+
       s.write l
       for item in items(o):
         s.write item.value
@@ -77,7 +65,10 @@ when enableLists:
 
     proc read[T](s: var Serializer; o: var name[T]) =
       o = `init name`[T]()
-      var l = len(o)
+      when compiles(len(o)):
+        var l = len(o)           # type inference
+      else:
+        var l = 0
       s.read l
       while l > 0:
         var value: T
