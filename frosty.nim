@@ -91,7 +91,7 @@ when enableLists:
   makeListSupport SinglyLinkedRing
   makeListSupport DoublyLinkedRing
 
-template greatenIndent*(s: var Serializer; body: untyped): untyped =
+template greatenIndent(s: var Serializer; body: untyped): untyped =
   ## Used for debugging.
   when not defined(release):
     s.indent = s.indent + 2
@@ -99,28 +99,15 @@ template greatenIndent*(s: var Serializer; body: untyped): untyped =
   when not defined(release):
     s.indent = s.indent - 2
 
-template debung*(s: Serializer; msg: string): untyped =
+template debung(s: Serializer; msg: string): untyped =
   ## Used for debugging.
   when defined(debug):
     when not defined(release):
       echo spaces(s.indent) & msg
 
 template writeComplex(s: var Serializer; o: object | tuple) =
-  s.greatenIndent:
-    s.debung $typeof(o) & " .. " & $refAddr(o)
-    for k, val in fieldPairs(o):
-      block wrote:
-        when val is int:
-          s.debung ".$1 $2 $3" % [ $k, $typeof(val), $val ]
-        elif val is string:
-          s.debung ".$1 $2 $3" % [ $k, $typeof(val), $val ]
-        elif val is float:
-          s.debung ".$1 $2 $3" % [ $k, $typeof(val), $val ]
-        elif val is pointer:
-          s.debung ".$1 $2 $3" % [ $k, $typeof(val), $val ]
-        else:
-          s.debung ".$1 $2 $3" % [ $k, $typeof(val), $refAddr(val) ]
-        s.write val
+  for k, val in fieldPairs(o):
+    s.write val
 
 template readComplex[T: object | tuple](s: var Serializer; o: var T) =
   for k, v in fieldPairs(o):
@@ -150,7 +137,7 @@ proc read(s: var Serializer; o: var string) =
 proc write[T](s: var Serializer; o: ref T) =
   # compute p and store it
   var g = Chunk(p: refAddr(o))
-  s.debung $typeof(o) & " " & $g.p
+  #s.debung $typeof(o) & " " & $g.p
   # if it's nonzero, also compute hash
   if g.p != 0:
     when not defined(release):

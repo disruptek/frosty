@@ -1,8 +1,6 @@
 frostyMagic	frosty.html#frostyMagic	frosty: frostyMagic	
 FreezeError	frosty.html#FreezeError	frosty: FreezeError	
 ThawError	frosty.html#ThawError	frosty: ThawError	
-greatenIndent	frosty.html#greatenIndent.t,Serializer,untyped	frosty: greatenIndent(s: var Serializer; body: untyped): untyped	
-debung	frosty.html#debung.t,Serializer,string	frosty: debung(s: Serializer; msg: string): untyped	
 freeze	frosty.html#freeze,T,Stream	frosty: freeze[T](o: T; stream: Stream)	
 freeze	frosty.html#freeze,T,string	frosty: freeze[T](o: T; str: var string)	
 freeze	frosty.html#freeze,T	frosty: freeze[T](o: T): string	

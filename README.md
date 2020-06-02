@@ -28,7 +28,7 @@ import frosty
 var
   data = someArbitraryDataFactory()
   handle = openFileStream("somefile", fmWrite)
-handle.freeze(data)
+data.freeze(handle)
 handle.close
 ```
 
@@ -42,6 +42,16 @@ var
   handle = openFileStream("somefile", fmRead)
 handle.thaw(data)
 handle.close
+```
+
+Or simply
+
+```nim
+var
+  data = "my data"
+  brrr = freeze(data)
+  ahha = thaw[string](brrr)
+assert ahha == data
 ```
 
 Zevv gave me the idea to provide a `channels` API as well, so that's something
