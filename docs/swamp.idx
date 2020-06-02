@@ -1,0 +1,7 @@
+magic	swamp.html#magic	swamp: magic	
+greatenIndent	swamp.html#greatenIndent.t,Serializer,untyped	swamp: greatenIndent(s: var Serializer; body: untyped): untyped	
+debung	swamp.html#debung.t,Serializer,string	swamp: debung(s: Serializer; msg: string): untyped	
+writeThing	swamp.html#writeThing,Stream,T	swamp: writeThing[T](stream: Stream; o: T)	
+readThing	swamp.html#readThing,Stream,T	swamp: readThing[T](stream: Stream; o: var T)	
+writeThing	swamp.html#writeThing,string,T	swamp: writeThing[T](str: var string; o: T)	
+readThing	swamp.html#readThing,string,T	swamp: readThing[T](str: string; o: var T)	
