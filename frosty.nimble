@@ -1,6 +1,6 @@
-version = "0.0.2"
+version = "0.0.3"
 author = "disruptek"
-description = "marshal native Nim objects via streams"
+description = "marshal native Nim objects via streams, channels"
 license = "MIT"
 
 requires "nim >= 1.0.0 & < 2.0.0"
@@ -11,11 +11,7 @@ proc execCmd(cmd: string) =
   exec cmd
 
 proc execTest(test: string) =
-  when true:
     execCmd "nim c              -r " & test
-  else:
-    execCmd "nim c           -f -r " & test
-    execCmd "nim c   -d:release -r " & test
     execCmd "nim c   -d:danger  -r " & test
     execCmd "nim cpp            -r " & test
     execCmd "nim cpp -d:danger  -r " & test
@@ -25,4 +21,4 @@ proc execTest(test: string) =
       execCmd "nim cpp --gc:arc --exceptions:goto -r " & test
 
 task test, "run tests for travis":
-  execTest("tests/test.nim")
+  execTest("frosty.nim")

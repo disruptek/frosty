@@ -1,7 +1,0 @@
-magic	marsh.html#magic	marsh: magic	
-greatenIndent	marsh.html#greatenIndent.t,Serializer,untyped	marsh: greatenIndent(s: var Serializer; body: untyped): untyped	
-debung	marsh.html#debung.t,Serializer,string	marsh: debung(s: Serializer; msg: string): untyped	
-writeThing	marsh.html#writeThing,Stream,T	marsh: writeThing[T](stream: Stream; o: T)	
-readThing	marsh.html#readThing,Stream,T	marsh: readThing[T](stream: Stream; o: var T)	
-writeThing	marsh.html#writeThing,string,T	marsh: writeThing[T](str: var string; o: T)	
-readThing	marsh.html#readThing,string,T	marsh: readThing[T](str: string; o: var T)	
