@@ -1,7 +1,7 @@
 # frosty
 _experimental_ marshalling of native Nim objects via streams, channels
 
-_it's like Python's pickle, but, y'know, **cooler*_
+_it's like Python's pickle, but, y'know, **cooler**_
 
 - `cpp +/ nim-1.0` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=master)](https://travis-ci.org/disruptek/frosty)
 - `arc +/ cpp +/ nim-1.3` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=devel)](https://travis-ci.org/disruptek/frosty)
