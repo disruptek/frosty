@@ -1,9 +1,9 @@
-import std/strutils
 import std/streams
 import std/tables
 
 # we'll only check hashes during debug builds
 when not defined(release):
+  import std/strutils
   import std/hashes
 
 const
@@ -22,7 +22,7 @@ type
     when not defined(release):
       indent: int
 
-  Chunk = object
+  Cube = object
     p: int
     when not defined(release):
       h: Hash
@@ -36,9 +36,9 @@ template refAddr(o: typed): int =
 proc newSerializer(stream: Stream): Serializer {.raises: [].} =
   result = Serializer(stream: stream)
 
-proc write[T](s: var Serializer; o: ref T)
+proc write[T](s: var Serializer; o: ref T; parent = 0)
 proc read[T](s: var Serializer; o: var ref T)
-proc write[T](s: var Serializer; o: T)
+proc write[T](s: var Serializer; o: T; parent = 0)
 proc read[T](s: var Serializer; o: var T)
 proc write[T](s: var Serializer; o: seq[T])
 proc read[T](s: var Serializer; o: var seq[T])
@@ -86,35 +86,64 @@ template greatenIndent(s: var Serializer; body: untyped): untyped =
   ## Used for debugging.
   when not defined(release):
     s.indent = s.indent + 2
+    defer:
+      s.indent = s.indent - 2
   body
-  when not defined(release):
-    s.indent = s.indent - 2
 
 template debung(s: Serializer; msg: string): untyped =
   ## Used for debugging.
-  when defined(debug):
-    when not defined(release):
+  when not defined(release):
+    when not defined(nimdoc):
       echo spaces(s.indent) & msg
 
-template writeComplex(s: var Serializer; o: object | tuple) =
-  for k, val in fieldPairs(o):
-    s.write val
+when not defined(nimdoc):
+  export greatenIndent, debung
+
+template writeComplex(s: var Serializer; o: object | tuple; parent = 0) =
+  #s.debung $typeof(o)
+  s.greatenIndent:
+    for k, val in fieldPairs(o):
+      when val is ref:
+        s.write val, parent = parent
+      else:
+        s.write val
+      #let q = repr(val)
+      #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
 
 template readComplex[T: object | tuple](s: var Serializer; o: var T) =
-  for k, v in fieldPairs(o):
-    s.read v
+  #s.debung $typeof(o)
+  s.greatenIndent:
+    for k, val in fieldPairs(o):
+      {.push fieldChecks: off.}
+      # work around variant objects?
+      var x = val
+      s.read x
+      val = x
+      #let q = repr(val)
+      #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
+      {.pop.}
 
-when not defined(release):
-  template audit(o: typed; p: typed): Hash =
-    when defined(release):
-      0
-    else:
-      when compiles(hash(o)):
-        hash(o)
-      elif compiles(hash(o[])):
-        hash(o[])
+template audit(o: typed; g: typed) =
+  when defined(release):
+    discard
+  else:
+    # if it's a pointer,
+    if g.p != 0:
+      # compute a hash
+      let h =
+        when compiles(hash(o)):
+          hash(o)
+        elif compiles(hash(o[])):
+          hash(o[])
+        else:
+          hash(g.p)
+      # if we read a hash,
+      if g.h != 0:
+        # check it,
+        assert g.h == h
       else:
-        hash(p)
+        # else, save it
+        g.h = h
 
 proc write(s: var Serializer; o: string) =
   write(s.stream, len(o))   # put the str len
@@ -124,17 +153,16 @@ proc read(s: var Serializer; o: var string) =
   var l = len(o)            # type inference
   read(s.stream, l)         # get the str len
   o = readStr(s.stream, l)  # get the str data
-  assert o.len == l
+  when not defined(release):
+    if len(o) != l:
+      raise newException(ValueError,
+        "expected string of len " & $l & " and got len " & $len(o))
 
-proc write[T](s: var Serializer; o: ref T) =
+proc write[T](s: var Serializer; o: ref T; parent = 0) =
   # compute p and store it
-  var g = Chunk(p: refAddr(o))
-  #s.debung $typeof(o) & " " & $g.p
+  var g = Cube(p: refAddr(o))
   # if it's nonzero, also compute hash
-  if g.p != 0:
-    when not defined(release):
-      g.h = audit(o, g.p)
-      assert g.h != 0
+  audit(o, g)
 
   # write the preamble
   s.write g
@@ -144,11 +172,14 @@ proc write[T](s: var Serializer; o: ref T) =
       # so record that this memory was seen,
       s.ptrs[g.p] = cast[pointer](o)
       # and write it now
-      s.write o[]
+      if g.p != parent:
+        s.write o[], parent = g.p
+      else:
+        raise
 
 proc read[T](s: var Serializer; o: var ref T) =
   var
-    g: Chunk
+    g: Cube
   s.read g
   if g.p == 0:
     o = nil
@@ -159,8 +190,8 @@ proc read[T](s: var Serializer; o: var ref T) =
       o = new (ref T)
       s.ptrs[g.p] = cast[pointer](o)
       s.read o[]
-    when not defined(release):
-      assert g.h == audit(o, g.p)
+      # after you read it, check the hash
+      audit(o, g)
 
 proc write[T](s: var Serializer; o: seq[T]) =
   runnableExamples:
@@ -191,11 +222,11 @@ proc read[T](s: var Serializer; o: var seq[T]) =
     s.read item           # read into the item
 
 # simple types are, uh, simple
-proc write[T](s: var Serializer; o: T) =
+proc write[T](s: var Serializer; o: T; parent = 0) =
   when T is object:
-    writeComplex(s, o)
+    writeComplex(s, o, parent = parent)
   elif T is tuple:
-    writeComplex(s, o)
+    writeComplex(s, o, parent = parent)
   else:
     write(s.stream, o)
 
@@ -254,6 +285,7 @@ proc freeze*[T](o: T): string =
     var u = thaw[Uri](s)
     # confirm that two objects match
     assert u == q
+
   freeze(o, result)
 
 proc thaw*[T](stream: Stream; o: var T) =

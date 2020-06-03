@@ -1,3 +1,4 @@
+import std/uri
 import std/hashes
 import std/times
 import std/strutils
@@ -7,8 +8,18 @@ import std/intsets
 import std/tables
 import std/os
 import std/random
+import std/json
 
 import frosty
+
+const
+  fn {.strdefine.} = "goats"
+
+let
+  mode = if paramCount() < 1: "write" else: paramStr(1)
+  count = if paramCount() < 2: 1 else: parseInt paramStr(2)
+
+echo "testing " & mode & " against " & $count & " units in " & fn
 
 type
   G = enum
@@ -27,12 +38,19 @@ type
     j: Table[string, int]
     k: TableRef[string, int]
     l: IntSet
+    m: JsonNode
 
 proc fileSize(path: string): float =
   result = getFileInfo(path).size.float / (1024*1024)
 
 proc `$`(x: MyType): string {.used.} =
   result = "$1 -> $5, $2 - $3 : $4" % [ $x.c, $x.a, $x.b, $x.j, $x.e, $x.f ]
+
+proc hash(o: object): Hash =
+  var h: Hash = 0
+  for k, v in fieldPairs(o):
+    h = h !& hash(v)
+  result = !$h
 
 proc hash(m: F): Hash =
   var h: Hash = 0
@@ -71,6 +89,9 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
+  when compiles(m.m):
+    if m.m != nil:
+      h = h !& hash(m.m)
   result = !$h
 
 proc hash(m: seq[MyType]): Hash =
@@ -88,108 +109,62 @@ template timer(name: string; body: untyped): untyped =
     echo e.msg
     echo name, " failed after ", cpuTime() - clock
 
-const objects = 7_500
-echo "will test against " & $objects & " units"
+let
+  tJs = %* {
+    "goats": ["pigs", "horses"],
+    "sheep": 11,
+    "ducks": 12.0,
+    "dogs": "woof",
+    "cats": false,
+    "frogs": { "toads": true, "rats": "yep" },
+  }
 
-when defined(danger):
-  import std/uri
+const
+  tSeq = @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  tString = "https://irclogs.nim-lang.org/01-06-2020.html#20:54:23"
+  tObj = parseUri(tString)
+var
+  tIntset = initIntSet()
+for i in 0 .. 10:
+  tIntset.incl i
 
-  import criterion
+proc makeChunks(n: int): seq[MyType] =
+  var n = n
+  while n > 0:
+    let jj = toTable {$n: n, $(n+1): n*2}
+    let kk = newTable {$n: n, $(n+1): n*2}
+    var l = initIntSet()
+    for i in 0 .. 40:
+      l.incl rand(int.high)
+    result.add MyType(a: rand(int n), b: rand(float n),
+                      e: G(n mod 2), #m: tJs,
+                      j: jj, c: $n, f: F(x: 66, y: 77),
+                      l: l, k: kk)
+    if len(result) > 1:
+      # link the last item to the previous item
+      result[^1].d = result[^2]
+    dec n
 
-  template writeSomething*(ss: Stream; w: typed): untyped =
-    ss.setPosition 0
-    when objects == 1:
-      ss.freeze w
-    else:
-      for i in 1 .. objects:
-        ss.freeze w
+let vals = makeChunks(count)
 
-  template readSomething*(ss: Stream; w: typed): untyped =
-    var
-      r: typeof(w)
-    ss.setPosition 0
-    when objects == 1:
-      ss.thaw r
-    else:
-      for i in 1 .. objects:
-        ss.thaw r
-    r
-
-  const
-    tSeq = @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    tString = "https://irclogs.nim-lang.org/01-06-2020.html#20:54:23"
-    tObj = parseUri(tString)
-  var
-    tIntset = initIntSet()
-  for i in 0 .. 10:
-    tIntset.incl i
-
-  var cfg = newDefaultConfig()
-  cfg.budget = 0.5
-
-  benchmark cfg:
-    var
-      ss = newStringStream()
-
-    proc write_seq() {.measure.} =
-      ss.writeSomething tSeq
-
-    proc read_seq() {.measure.} =
-      discard ss.readSomething tSeq
-
-    proc write_string() {.measure.} =
-      ss.writeSomething tString
-
-    proc read_string() {.measure.} =
-      discard ss.readSomething tString
-
-    proc write_obj() {.measure.} =
-      ss.writeSomething tObj
-
-    proc read_obj() {.measure.} =
-      discard ss.readSomething tObj
-
-    proc write_intset() {.measure.} =
-      ss.writeSomething tIntset
-
-    proc read_intset() {.measure.} =
-      let r = ss.readSomething tIntset
-
-else:  # ^^ danger      vv no danger
-
-  proc makeChunks(n: int): seq[MyType] =
-    var n = n
-    while n > 0:
-      let jj = toTable {$n: n, $(n+1): n*2}
-      let kk = newTable {$n: n, $(n+1): n*2}
-      var l = initIntSet()
-      for i in 0 .. 100:
-        l.incl rand(int.high)
-      result.add MyType(a: rand(int n), b: rand(float n),
-                        e: G(n mod 2),
-                        j: jj, c: $n, f: F(x: 66, y: 77),
-                        l: l, k: kk)
-      if len(result) > 1:
-        # link the last item to the previous item
-        result[^1].d = result[^2]
-      dec n
-
-  const
-    fn = "goats"
-
-  echo "makin' goats..."
-  let vals = makeChunks(objects)
-
+if mode == "write":
+  var fh = openFileStream(fn, fmWrite)
+  timer "write some goats":
+    freeze(vals, fh)
+  close fh
+  echo "file size in meg: ", fileSize(fn)
+else:
   if not fileExists(fn):
-    var fh = openFileStream(fn, fmWrite)
-    timer "write some goats":
-      freeze(vals, fh)
-    close fh
-    echo "file size in meg: ", fileSize(fn)
-  else:
-    var q: typeof(vals)
-    var fh = openFileStream(fn, fmRead)
-    timer "read some goats":
-      thaw(fh, q)
-    close fh
-    assert hash(q) == hash(vals)
+    echo "no input to read"
+    quit(1)
+  var q: typeof(vals)
+  var fh = openFileStream(fn, fmRead)
+  timer "read some goats":
+    thaw(fh, q)
+  close fh
+  for i in vals.low .. vals.high:
+    if hash(q[i]) != hash(vals[i]):
+      echo "index: ", i
+      echo " vals: ", vals[i]
+      echo "    q: ", q[i]
+      quit(1)
