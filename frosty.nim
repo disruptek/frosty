@@ -1,3 +1,4 @@
+import std/net
 import std/streams
 import std/tables
 
@@ -13,11 +14,13 @@ const
   enableLists = false
 
 type
-  FreezeError* = ValueError  ## An error raised during `freeze`. (unused)
-  ThawError* = ValueError    ## An error raised during `thaw`.
+  FreezeError* = ValueError  ##
+  ## An error raised during `freeze`. (unused)
+  ThawError* = ValueError    ##
+  ## An error raised during `thaw`.
 
-  Serializer = object
-    stream: Stream
+  Serializer[T] = object
+    stream: T
     ptrs: Table[int, pointer]
     when not defined(release):
       indent: int
@@ -27,23 +30,28 @@ type
     when not defined(release):
       h: Hash
 
+# convenience to make certain calls more legible
+template socket(s: Serializer): Socket = s.stream
+
 template refAddr(o: typed): int =
   when o is ref:
     if o == nil: 0 else: cast[int](o)
   else:
     0
 
-proc newSerializer(stream: Stream): Serializer {.raises: [].} =
-  result = Serializer(stream: stream)
+proc newSerializer[S](source: S): Serializer[S] {.raises: [].} =
+  result = Serializer[S](stream: source)
 
-proc write[T](s: var Serializer; o: ref T; parent = 0)
-proc read[T](s: var Serializer; o: var ref T)
-proc write[T](s: var Serializer; o: T; parent = 0)
-proc read[T](s: var Serializer; o: var T)
-proc write[T](s: var Serializer; o: seq[T])
-proc read[T](s: var Serializer; o: var seq[T])
-proc write(s: var Serializer; o: string)
-proc read(s: var Serializer; o: var string)
+proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0)
+proc read[S, T](s: var Serializer[S]; o: var ref T)
+proc write[S, T](s: var Serializer[S]; o: T; parent = 0)
+proc read[S, T](s: var Serializer[S]; o: var T)
+proc write[S, T](s: var Serializer[S]; o: seq[T])
+proc read[S, T](s: var Serializer[S]; o: var seq[T])
+proc write(s: var Serializer[Stream]; o: string)
+proc read(s: var Serializer[Stream]; o: var string)
+proc write(s: var Serializer[Socket]; o: string)
+proc read(s: var Serializer[Socket]; o: var string)
 
 when enableLists:
   import std/lists
@@ -145,20 +153,35 @@ template audit(o: typed; g: typed) =
         # else, save it
         g.h = h
 
-proc write(s: var Serializer; o: string) =
+proc write(s: var Serializer[Stream]; o: string) =
   write(s.stream, len(o))   # put the str len
   write(s.stream, o)        # put the str data
 
-proc read(s: var Serializer; o: var string) =
+proc read(s: var Serializer[Stream]; o: var string) =
   var l = len(o)            # type inference
   read(s.stream, l)         # get the str len
   o = readStr(s.stream, l)  # get the str data
-  when not defined(release):
-    if len(o) != l:
-      raise newException(ValueError,
-        "expected string of len " & $l & " and got len " & $len(o))
 
-proc write[T](s: var Serializer; o: ref T; parent = 0) =
+proc write(s: var Serializer[Socket]; o: string) =
+  var l = len(o)            # type inference
+  # send the length of the string
+  if send(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
+    raise newException(FreezeError, "short write; socket closed?")
+  # send the string itself; this can raise...
+  send(s.socket, data = o)
+
+proc read(s: var Serializer[Socket]; o: var string) =
+  var l = len(o)            # type inference
+  # receive the string size
+  if recv(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
+    raise newException(ThawError, "short read; socket closed?")
+  # for the following recv(), "data must be initialized"
+  setLen(o, l)
+  # receive the string
+  if recv(s.socket, data = o, size = l) != l:
+    raise newException(ThawError, "short read; socket closed?")
+
+proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # compute p and store it
   var g = Cube(p: refAddr(o))
   # if it's nonzero, also compute hash
@@ -177,7 +200,7 @@ proc write[T](s: var Serializer; o: ref T; parent = 0) =
       else:
         raise
 
-proc read[T](s: var Serializer; o: var ref T) =
+proc read[S, T](s: var Serializer[S]; o: var ref T) =
   var
     g: Cube
   s.read g
@@ -193,7 +216,7 @@ proc read[T](s: var Serializer; o: var ref T) =
       # after you read it, check the hash
       audit(o, g)
 
-proc write[T](s: var Serializer; o: seq[T]) =
+proc write[S, T](s: var Serializer[S]; o: seq[T]) =
   runnableExamples:
     # start with some data
     var q = @[1, 1, 2, 3, 5]
@@ -214,7 +237,7 @@ proc write[T](s: var Serializer; o: seq[T]) =
   for item in items(o):
     s.write item
 
-proc read[T](s: var Serializer; o: var seq[T]) =
+proc read[S, T](s: var Serializer[S]; o: var seq[T]) =
   var l = len(o)          # type inference
   s.read l                # get the len of the seq
   o.setLen(l)             # pre-alloc the sequence
@@ -222,21 +245,37 @@ proc read[T](s: var Serializer; o: var seq[T]) =
     s.read item           # read into the item
 
 # simple types are, uh, simple
-proc write[T](s: var Serializer; o: T; parent = 0) =
+proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
   when T is object:
     writeComplex(s, o, parent = parent)
   elif T is tuple:
     writeComplex(s, o, parent = parent)
   else:
-    write(s.stream, o)
+    when S is Socket:
+      if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+        raise newException(FreezeError, "short write; socket closed?")
+    else:
+      write(s.stream, o)
 
-proc read[T](s: var Serializer; o: var T) =
+proc read[S, T](s: var Serializer[S]; o: var T) =
   when T is object:
     readComplex(s, o)
   elif T is tuple:
     readComplex(s, o)
   else:
-    read(s.stream, o)
+    when S is Socket:
+      if recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+        raise newException(ThawError, "short read; socket closed?")
+    else:
+      read(s.stream, o)
+
+proc freeze*[T](o: T; socket: Socket) =
+  ## Send `o` via `socket`.
+  ##
+  ## A "magic" value will be written, first.
+  var s = newSerializer(socket)
+  s.write frostyMagic
+  s.write o
 
 proc freeze*[T](o: T; stream: Stream) =
   ## Write `o` into `stream`.
@@ -299,6 +338,20 @@ proc thaw*[T](stream: Stream; o: var T) =
     raise newException(ThawError, "expected magic " & $frostyMagic)
   else:
     var s = newSerializer(stream)
+    s.read o
+
+proc thaw*[T](socket: Socket; o: var T) =
+  ## Receive `o` from `socket`.
+  ##
+  ## First, a "magic" value will be read.  A `ThawError`
+  ## will be raised if the magic value is not as expected.
+  var v: int
+  if recv(socket, data = addr v, size = sizeof(v)) != sizeof(v):
+    raise newException(ThawError, "short read; socket closed?")
+  if v != frostyMagic:
+    raise newException(ThawError, "expected magic " & $frostyMagic)
+  else:
+    var s = newSerializer(socket)
     s.read o
 
 proc thaw*[T](str: string; o: var T) =
