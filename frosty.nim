@@ -107,30 +107,6 @@ template debung(s: Serializer; msg: string): untyped =
 when not defined(nimdoc):
   export greatenIndent, debung
 
-template writeComplex(s: var Serializer; o: object | tuple; parent = 0) =
-  #s.debung $typeof(o)
-  s.greatenIndent:
-    for k, val in fieldPairs(o):
-      when val is ref:
-        s.write val, parent = parent
-      else:
-        s.write val
-      #let q = repr(val)
-      #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
-
-template readComplex[T: object | tuple](s: var Serializer; o: var T) =
-  #s.debung $typeof(o)
-  s.greatenIndent:
-    for k, val in fieldPairs(o):
-      {.push fieldChecks: off.}
-      # work around variant objects?
-      var x = val
-      s.read x
-      val = x
-      #let q = repr(val)
-      #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
-      {.pop.}
-
 template audit(o: typed; g: typed) =
   when defined(release):
     discard
@@ -244,30 +220,49 @@ proc read[S, T](s: var Serializer[S]; o: var seq[T]) =
   for item in mitems(o):  # iterate over mutable items
     s.read item           # read into the item
 
-# simple types are, uh, simple
+proc writePrimitive[T](s: var Serializer[Stream]; o: T) =
+  write(s.stream, o)
+
+proc writePrimitive[T](s: var Serializer[Socket]; o: T) =
+  if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+    raise newException(FreezeError, "short write; socket closed?")
+
 proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
-  when T is object:
-    writeComplex(s, o, parent = parent)
-  elif T is tuple:
-    writeComplex(s, o, parent = parent)
+  when T is object or T is tuple:
+    #s.debung $typeof(o)
+    s.greatenIndent:
+      for k, val in fieldPairs(o):
+        when val is ref:
+          s.write val, parent = parent
+        else:
+          s.write val
+        #let q = repr(val)
+        #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
   else:
-    when S is Socket:
-      if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
-        raise newException(FreezeError, "short write; socket closed?")
-    else:
-      write(s.stream, o)
+    writePrimitive(s, o)
+
+proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
+  read(s.stream, o)
+
+proc readPrimitive[T](s: var Serializer[Socket]; o: var T) =
+  if recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+    raise newException(ThawError, "short read; socket closed?")
 
 proc read[S, T](s: var Serializer[S]; o: var T) =
-  when T is object:
-    readComplex(s, o)
-  elif T is tuple:
-    readComplex(s, o)
+  when T is object or T is tuple:
+    #s.debung $typeof(o)
+    s.greatenIndent:
+      for k, val in fieldPairs(o):
+        {.push fieldChecks: off.}
+        # work around variant objects?
+        var x = val
+        s.read x
+        val = x
+        #let q = repr(val)
+        #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
+        {.pop.}
   else:
-    when S is Socket:
-      if recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
-        raise newException(ThawError, "short read; socket closed?")
-    else:
-      read(s.stream, o)
+    readPrimitive(s, o)
 
 proc freeze*[T](o: T; socket: Socket) =
   ## Send `o` via `socket`.
@@ -366,4 +361,4 @@ proc thaw*[T](str: string): T =
   ## Read value of `T` from `str`.
   ##
   ## A "magic" value must prefix the input string.
-  thaw[T](str, result)
+  thaw(str, result)

@@ -1,7 +1,9 @@
 # frosty
-_experimental_ marshalling of native Nim objects via streams, channels, sockets
+_experimental_ native Nim blobs via streams, sockets
 
 _it's like Python's pickle, but, y'know, **cooler**_
+
+Actually, it's not.  I don't know why I said that.
 
 - `cpp +/ nim-1.0` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=master)](https://travis-ci.org/disruptek/frosty)
 - `arc +/ cpp +/ nim-1.3` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=devel)](https://travis-ci.org/disruptek/frosty)
@@ -15,8 +17,19 @@ Making some assumptions (ie. that our types aren't changing) allows...
 - predictably _idiomatic_ API
 - **hard to misuse**
 
-Crude though it may be, this code reads and writes >500mb of arbitrary Nim data
-structures in 1.5s on my machine.
+## Performance
+
+Frosty can handle cyclic data structures, but not (yet) memory graphs of
+infinite size -- you can exhaust the stack. We have a solution for this in the
+works.
+
+### Stream
+
+Pretty fast.
+
+### Socket
+
+Untested.  Ask @zedeus.
 
 ## Example
 
@@ -47,16 +60,11 @@ handle.close
 Or simply
 
 ```nim
-var
-  data = "my data"
-  brrr = freeze(data)
-  ahha = thaw[string](brrr)
-assert ahha == data
-```
+import frosty
 
-Zevv gave me the idea to provide a `channels` API as well, so that's something
-to add next. Channels are kinda expensive by comparison, though, because they
-require a copy...
+var brrr = freeze("my data")
+assert thaw[string](brrr) == "my data"
+```
 
 ## Installation
 
@@ -78,6 +86,11 @@ despite the rapidly-evolving API.
 
 [See the documentation for the frosty module as generated directly from the
 source.](https://disruptek.github.io/frosty/frosty.html)
+
+## Testing
+
+There's a test and a benchmark under `tests/`; the benchmark requires
+[criterion](https://disruptek.github.io/criterion).
 
 ## License
 MIT

@@ -4,7 +4,7 @@ description = "marshal native Nim objects via streams, channels"
 license = "MIT"
 
 requires "nim >= 1.0.0 & < 2.0.0"
-#requires "https://github.com/disruptek/criterion"
+requires "https://github.com/disruptek/muffins"
 
 proc execCmd(cmd: string) =
   echo "exec: " & cmd

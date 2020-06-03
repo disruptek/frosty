@@ -47,6 +47,7 @@ proc `$`(x: MyType): string {.used.} =
   result = "$1 -> $5, $2 - $3 : $4" % [ $x.c, $x.a, $x.b, $x.j, $x.e, $x.f ]
 
 proc hash(o: object): Hash =
+  echo "oh"
   var h: Hash = 0
   for k, v in fieldPairs(o):
     h = h !& hash(v)
@@ -153,10 +154,10 @@ if mode == "write":
     freeze(vals, fh)
   close fh
   echo "file size in meg: ", fileSize(fn)
+elif not fileExists(fn):
+  echo "no input to read"
+  quit(1)
 else:
-  if not fileExists(fn):
-    echo "no input to read"
-    quit(1)
   var q: typeof(vals)
   var fh = openFileStream(fn, fmRead)
   timer "read some goats":
