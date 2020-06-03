@@ -1,5 +1,5 @@
 # frosty
-_experimental_ marshalling of native Nim objects via streams, channels
+_experimental_ marshalling of native Nim objects via streams, channels, sockets
 
 _it's like Python's pickle, but, y'know, **cooler**_
 
