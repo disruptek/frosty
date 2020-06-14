@@ -4,7 +4,7 @@ description = "marshal native Nim objects via streams, channels"
 license = "MIT"
 
 requires "nim >= 1.0.0 & < 2.0.0"
-requires "https://github.com/disruptek/muffins"
+#requires "https://github.com/disruptek/muffins"
 
 proc execCmd(cmd: string) =
   echo "exec: " & cmd
@@ -12,8 +12,8 @@ proc execCmd(cmd: string) =
 
 proc execTest(test: string) =
   when true:
-    execCmd "nim c -d:danger -r " & test & " write"
-    execCmd "nim c -d:danger -r " & test & " read"
+    execCmd "nim c        -f -r " & test & " write"
+    execCmd "nim c           -r " & test & " read"
     execCmd "nim c -d:danger -r " & test & " write 500"
     execCmd "nim c -d:danger -r " & test & " read 500"
   else:
