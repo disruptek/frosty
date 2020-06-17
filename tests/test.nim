@@ -35,6 +35,7 @@ type
     d: MyType
     e: G
     f: F
+    g: (string, int)
     j: Table[string, int]
     k: TableRef[string, int]
     l: IntSet
@@ -87,6 +88,7 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.c)
   h = h !& hash(m.e)
   h = h !& hash(m.f)
+  h = h !& hash(m.g)
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
@@ -140,6 +142,7 @@ proc makeChunks(n: int): seq[MyType] =
     result.add MyType(a: rand(int n), b: rand(float n),
                       e: G(n mod 2), #m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
+                      g: ("hello", 22),
                       l: l, k: kk)
     if len(result) > 1:
       # link the last item to the previous item
