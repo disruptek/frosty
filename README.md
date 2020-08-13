@@ -90,7 +90,7 @@ source.](https://disruptek.github.io/frosty/frosty.html)
 ## Testing
 
 There's a test and a benchmark under `tests/`; the benchmark requires
-[criterion](https://disruptek.github.io/criterion).
+[criterion](https://github.com/disruptek/criterion).
 
 ## License
 MIT
