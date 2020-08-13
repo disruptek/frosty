@@ -21,15 +21,29 @@ let
   count = if paramCount() < 2: 1 else: parseInt paramStr(2)
 echo "benching against " & $count & " units in " & fn
 
-let
-  tJs = %* {
-    "goats": ["pigs", "horses"],
-    "sheep": 11,
-    "ducks": 12.0,
-    "dogs": "woof",
-    "cats": false,
-    "frogs": { "toads": true, "rats": "yep" },
-  }
+var
+  tJsA {.compileTime.} = newJArray()
+  tJsO {.compileTime.} = newJObject()
+  tJs {.compileTime.} = newJObject()
+
+tJsA.add newJString"pigs"
+tJsA.add newJString"horses"
+
+tJsO.add "toads", newJBool(true)
+tJsO.add "rats", newJString"yep"
+
+for k, v in {
+  "goats": tJsA,
+  "sheep": newJInt(11),
+  "ducks": newJFloat(12.0),
+  "dogs": newJString("woof"),
+  "cats": newJBool(false),
+  "frogs": tJsO,
+}.items:
+  tJs[k] = v
+
+const
+  jsSize = len($tJs)
 
 template writeSomething*(ss: Stream; w: typed): untyped =
   ss.setPosition 0
@@ -89,6 +103,22 @@ benchmark cfg:
 
   proc read_intset() {.measure.} =
     let r = ss.readSomething tIntset
+
+  proc write_json_naive() {.measure.} =
+    ss.setPosition 0
+    if count == 1:
+      ss.write $tJs
+    else:
+      for i in 1 .. count:
+        ss.write $tJs
+
+  proc read_json_naive() {.measure.} =
+    ss.setPosition 0
+    if count == 1:
+      discard parseJson(ss.readStr jsSize)
+    else:
+      for i in 1 .. count:
+        discard parseJson(ss.readStr jsSize)
 
   proc write_json() {.measure.} =
     ss.writeSomething tJs

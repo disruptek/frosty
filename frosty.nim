@@ -1,3 +1,4 @@
+import std/macros
 import std/net
 import std/streams
 import std/tables
@@ -10,6 +11,7 @@ when not defined(release):
 const
   frostyMagic* {.intdefine.} = 0xBADCAB ##
   ## A magic file value for our "format".
+  frostyDebug {.booldefine.} = when defined(release): false else: true
 
   enableLists = false
 
@@ -52,6 +54,8 @@ proc write(s: var Serializer[Stream]; o: string)
 proc read(s: var Serializer[Stream]; o: var string)
 proc write(s: var Serializer[Socket]; o: string)
 proc read(s: var Serializer[Socket]; o: var string)
+proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
+proc readPrimitive[T](s: var Serializer[Socket]; o: var T)
 
 when enableLists:
   import std/lists
@@ -176,6 +180,87 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
       else:
         raise
 
+proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = false) =
+  var skip = skip
+  for k, val in fieldPairs(o):
+    if skip:
+      skip = false
+    else:
+      # create a var that we can pass to the read()
+      var x: typeof(val)
+      s.read x
+      val = x
+
+macro readObject[S, T](s: var Serializer[S]; o: var T) =
+  # do nothing by default
+  result = newEmptyNode()
+  let
+    readTuple = bindSym"readTuple"
+    reader = bindSym("readPrimitive", rule = brClosed)
+    typ = o.getTypeImpl
+    sym = o.getTypeInst
+  when defined(frostyDebug):
+    echo typ.treeRepr
+    echo typ.repr
+  case typ.kind
+  of nnkObjectTy:
+    let fields = typ[^1] # RecList
+    case fields[0].kind
+    of nnkIdentDefs:
+      # named tuple/object
+      result = newCall(readTuple, s, o)
+    of nnkRecCase:
+      # object variant
+      result = newStmtList()
+      let disc = fields[0][0]      # the first IdentDefs under RecCase
+
+      let name = disc[0]           # the symbol of the discriminator
+      let dtyp = disc[1]           # the type of the discriminator
+
+      when defined(frostyDebug):
+        echo dtyp.getTypeImpl.treeRepr
+
+      # create a variable into which we can read the discriminator
+      let kind = genSym(nskVar, "kind")
+
+      # declare our kind variable with its value type
+      result.add nnkVarSection.newTree(newIdentDefs(kind, dtyp,
+                                                    newEmptyNode()))
+
+      # read the value of the discriminator into our `kind` variable
+      result.add newCall(reader, s, kind)
+
+      # create an object constructor for the variant object
+      var ctor = nnkObjConstr.newNimNode
+
+      # the first child is the name of the object type
+      ctor.add ident(sym.strVal)
+
+      # add `name: kind` to the variant object constructor
+      ctor.add newColonExpr(name, kind)
+
+      # assign it to the input symbol
+      result.add newAssignment(o, ctor)
+
+      # prepare a skip=true argument to readTuple()
+      let skip = nnkExprEqExpr.newTree(ident"skip", ident"true")
+
+      # read the remaining fields as determined by the discriminator
+      result.add newCall(readTuple, s, o, skip)  # skip 1st field
+
+    else:
+      error "unrecognized type format: \n" & treeRepr(typ)
+
+  of nnkTupleTy:
+    # (name: "jeff", age: 34)
+    result = newCall(readTuple, s, o)
+  of nnkTupleConstr:
+    # ("jeff", 34)
+    result = newCall(readTuple, s, o)
+  else:
+    error "attempt to read unrecognized type: " & $typ.kind
+
+
 proc read[S, T](s: var Serializer[S]; o: var ref T) =
   var
     g: Cube
@@ -229,38 +314,30 @@ proc writePrimitive[T](s: var Serializer[Socket]; o: T) =
 
 proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
   when T is object or T is tuple:
-    #s.debung $typeof(o)
+    when defined(frostyDebug):
+      s.debung $typeof(o)
     s.greatenIndent:
       for k, val in fieldPairs(o):
         when val is ref:
           s.write val, parent = parent
         else:
           s.write val
-        #let q = repr(val)
-        #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
+        when defined(frostyDebug):
+          let q = repr(val)
+          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
   else:
     writePrimitive(s, o)
 
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
-  read(s.stream, o)
+  streams.read(s.stream, o)
 
 proc readPrimitive[T](s: var Serializer[Socket]; o: var T) =
-  if recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+  if net.recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
     raise newException(ThawError, "short read; socket closed?")
 
 proc read[S, T](s: var Serializer[S]; o: var T) =
   when T is object or T is tuple:
-    #s.debung $typeof(o)
-    s.greatenIndent:
-      for k, val in fieldPairs(o):
-        {.push fieldChecks: off.}
-        # work around variant objects?
-        var x = val
-        s.read x
-        val = x
-        #let q = repr(val)
-        #s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
-        {.pop.}
+    readObject(s, o)
   else:
     readPrimitive(s, o)
 

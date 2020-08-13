@@ -35,10 +35,19 @@ type
     d: MyType
     e: G
     f: F
+    g: (string, int)
+    h: (VType, VType)
     j: Table[string, int]
     k: TableRef[string, int]
     l: IntSet
     m: JsonNode
+
+  VType = object
+    case kind: G
+    of Even:
+      even: int
+    of Odd:
+      odd: bool
 
 proc fileSize(path: string): float =
   result = getFileInfo(path).size.float / (1024*1024)
@@ -80,6 +89,16 @@ proc hash[A, B](t: TableRef[A, B]): Hash =
       h = h !& hash(v)
   result = !$h
 
+proc hash(t: VType): Hash =
+  var h: Hash = 0
+  h = h !& hash(t.kind)
+  case t.kind
+  of Even:
+    h = h !& hash(t.even)
+  of Odd:
+    h = h !& hash(t.odd)
+  result = !$h
+
 proc hash(m: MyType): Hash =
   var h: Hash = 0
   h = h !& hash(m.a)
@@ -87,6 +106,8 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.c)
   h = h !& hash(m.e)
   h = h !& hash(m.f)
+  h = h !& hash(m.g)
+  h = h !& hash(m.h)
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
@@ -140,6 +161,9 @@ proc makeChunks(n: int): seq[MyType] =
     result.add MyType(a: rand(int n), b: rand(float n),
                       e: G(n mod 2), #m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
+                      g: ("hello", 22),
+                      h: (VType(kind: Even, even: 11),
+                          VType(kind: Odd, odd: true)),
                       l: l, k: kk)
     if len(result) > 1:
       # link the last item to the previous item
