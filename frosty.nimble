@@ -1,10 +1,9 @@
 version = "0.1.0"
 author = "disruptek"
-description = "marshal native Nim objects via streams, channels"
+description = "serialize native Nim objects via streams, sockets"
 license = "MIT"
 
 requires "nim >= 1.0.0 & < 2.0.0"
-#requires "https://github.com/disruptek/muffins"
 
 proc execCmd(cmd: string) =
   echo "exec: " & cmd
@@ -21,7 +20,7 @@ proc execTest(test: string) =
     execCmd "nim c   -d:danger  -r " & test & " read"
     execCmd "nim cpp            -r " & test & " write"
     execCmd "nim cpp -d:danger  -r " & test & " read"
-    when NimMajor >= 1 and NimMinor >= 1:
+    when (NimMajor, NimMinor) >= (1, 2):
       execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " write"
       execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " read"
       execCmd "nim c   --gc:arc -r " & test & " write"
