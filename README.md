@@ -1,12 +1,11 @@
 # frosty
-_experimental_ native Nim blobs via streams, sockets
 
-_it's like Python's pickle, but, y'know, **cooler**_
+[![Test Matrix](https://github.com/disruptek/frosty/workflows/CI/badge.svg)](https://github.com/disruptek/frosty/actions?query=workflow%3ACI)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/disruptek/frosty?style=flat)](https://github.com/disruptek/frosty/releases/latest)
+![Minimum supported Nim version](https://img.shields.io/badge/nim-1.0.8%2B-informational?style=flat&logo=nim)
+[![License](https://img.shields.io/github/license/disruptek/frosty?style=flat)](#license)
 
-Actually, it's not.  I don't know why I said that.
-
-- `cpp +/ nim-1.0` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=master)](https://travis-ci.org/disruptek/frosty)
-- `arc +/ cpp +/ nim-1.3` [![Build Status](https://travis-ci.org/disruptek/frosty.svg?branch=devel)](https://travis-ci.org/disruptek/frosty)
+Write native Nim objects to Streams, Sockets.  That is all.
 
 ## Goals
 
@@ -22,14 +21,6 @@ Making some assumptions (ie. that our types aren't changing) allows...
 Frosty can handle cyclic data structures, but not (yet) memory graphs of
 infinite size -- you can exhaust the stack. We have a solution for this in the
 works.
-
-### Stream
-
-Pretty fast.
-
-### Socket
-
-Untested.  Ask @zedeus.
 
 ## Example
 
@@ -78,8 +69,6 @@ $ nimble install https://github.com/disruptek/frosty
 
 ## Documentation
 
-_WIP_
-
 I'm going to try a little harder with these docs by using `runnableExamples`
 so the documentation demonstrates _current_ usage examples and working tests
 despite the rapidly-evolving API.
@@ -89,7 +78,7 @@ source.](https://disruptek.github.io/frosty/frosty.html)
 
 ## Testing
 
-There's a test and a benchmark under `tests/`; the benchmark requires
+There's a test and [a benchmark under `tests/`](https://github.com/disruptek/frosty/blob/master/tests/bench.nim); the benchmark requires
 [criterion](https://github.com/disruptek/criterion).
 
 ## License
