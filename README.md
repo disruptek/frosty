@@ -5,7 +5,7 @@
 ![Minimum supported Nim version](https://img.shields.io/badge/nim-1.0.8%2B-informational?style=flat&logo=nim)
 [![License](https://img.shields.io/github/license/disruptek/frosty?style=flat)](#license)
 
-Write native Nim objects to Streams, Sockets.  That is all.
+Serialize native Nim objects via Streams, Sockets.  That is all.
 
 ## Goals
 
