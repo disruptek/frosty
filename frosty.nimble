@@ -14,18 +14,18 @@ proc execTest(test: string) =
   when getEnv("GITHUB_ACTIONS", "false") != "true":
     execCmd "nim c        -f -r " & test & " write"
     execCmd "nim c           -r " & test & " read"
-    execCmd "nim c -d:danger -r " & test & " write 1000"
-    execCmd "nim c -d:danger -r " & test & " read 1000"
+    execCmd "nim c -d:danger -r " & test & " write 500"
+    execCmd "nim c -d:danger -r " & test & " read 500"
   else:
-    execCmd "nim c              -r " & test & " write 1000"
-    execCmd "nim c   -d:danger  -r " & test & " read 1000"
-    execCmd "nim cpp            -r " & test & " write 1000"
-    execCmd "nim cpp -d:danger  -r " & test & " read 1000"
+    execCmd "nim c              -r " & test & " write 500"
+    execCmd "nim c   -d:danger  -r " & test & " read 500"
+    execCmd "nim cpp            -r " & test & " write 500"
+    execCmd "nim cpp -d:danger  -r " & test & " read 500"
     when (NimMajor, NimMinor) >= (1, 2):
-      execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " write 1000"
-      execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " read 1000"
-      execCmd "nim c   --gc:arc -r " & test & " write 1000"
-      execCmd "nim cpp --gc:arc -r " & test & " read 1000"
+      execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " write 500"
+      execCmd "nim c --useVersion:1.0 -d:danger -r " & test & " read 500"
+      execCmd "nim c   --gc:arc -r " & test & " write 500"
+      execCmd "nim cpp --gc:arc -r " & test & " read 500"
 
 task test, "run tests for travis":
   execTest("tests/test.nim")
