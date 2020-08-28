@@ -8,6 +8,8 @@ when not defined(release):
   import std/strutils
   import std/hashes
 
+import sorta
+
 const
   frostyMagic* {.intdefine.} = 0xBADCAB ##
   ## A magic file value for our "format".
@@ -23,7 +25,8 @@ type
 
   Serializer[T] = object
     stream: T
-    ptrs: Table[int, pointer]
+    ptrs: SortedTable[int, pointer]
+    stack: seq[pointer]
     when not defined(release):
       indent: int
 
@@ -170,11 +173,9 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # write the preamble
   s.write g
   if g.p != 0:
-    if g.p notin s.ptrs:
+    if not hasKeyOrPut(s.ptrs, g.p, cast[pointer](o)):
       # we haven't written the value for this address yet,
-      # so record that this memory was seen,
-      s.ptrs[g.p] = cast[pointer](o)
-      # and write it now
+      # so write it now
       if g.p != parent:
         s.write o[], parent = g.p
       else:
@@ -262,20 +263,24 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
 
 
 proc read[S, T](s: var Serializer[S]; o: var ref T) =
+  const
+    unlikely = cast[pointer](-1)
   var
     g: Cube
   s.read g
   if g.p == 0:
     o = nil
   else:
-    if g.p in s.ptrs:
-      o = cast[ref T](s.ptrs[g.p])
-    else:
+    # a lookup is waaaay cheaper than an alloc
+    let p = getOrDefault(s.ptrs, g.p, unlikely)
+    if p == unlikely:
       o = new (ref T)
       s.ptrs[g.p] = cast[pointer](o)
       s.read o[]
       # after you read it, check the hash
       audit(o, g)
+    else:
+      o = cast[ref T](p)
 
 proc write[S, T](s: var Serializer[S]; o: seq[T]) =
   runnableExamples:
