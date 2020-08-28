@@ -17,7 +17,7 @@ const
 
 type
   FreezeError* = ValueError  ##
-  ## An error raised during `freeze`. (unused)
+  ## An error raised during `freeze`.
   ThawError* = ValueError    ##
   ## An error raised during `thaw`.
 
@@ -178,7 +178,7 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
       if g.p != parent:
         s.write o[], parent = g.p
       else:
-        raise
+        raise newException(FreezeError, "unexpected cycle")
 
 proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = false) =
   var skip = skip
