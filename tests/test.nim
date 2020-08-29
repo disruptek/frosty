@@ -37,6 +37,7 @@ type
     f: F
     g: (string, int)
     h: (VType, VType)
+    i: seq[string]
     j: Table[string, int]
     k: TableRef[string, int]
     l: IntSet
@@ -108,6 +109,7 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.f)
   h = h !& hash(m.g)
   h = h !& hash(m.h)
+  h = h !& hash(m.i)
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
@@ -161,6 +163,7 @@ proc makeChunks(n: int): seq[MyType] =
     result.add MyType(a: rand(int n), b: rand(float n),
                       e: G(n mod 2), #m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
+                      i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22),
                       h: (VType(kind: Even, even: 11),
                           VType(kind: Odd, odd: true)),
