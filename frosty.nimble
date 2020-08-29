@@ -14,8 +14,8 @@ proc execTest(test: string) =
   when getEnv("GITHUB_ACTIONS", "false") != "true":
     execCmd "nim c        -f -r " & test & " write"
     execCmd "nim c           -r " & test & " read"
-    execCmd "nim c -d:danger -r " & test & " write 1000"
-    execCmd "nim c -d:danger -r " & test & " read 1000"
+    execCmd "nim c -d:danger --gc:arc -r " & test & " write 1000"
+    execCmd "nim c -d:danger --gc:arc -r " & test & " read 1000"
   else:
     execCmd "nim c   -d:danger  -r " & test & " write 1000"
     execCmd "nim c   -d:danger  -r " & test & " read 1000"

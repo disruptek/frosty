@@ -3,7 +3,6 @@ import std/hashes
 import std/times
 import std/strutils
 import std/streams
-import std/lists
 import std/intsets
 import std/tables
 import std/os
@@ -42,6 +41,8 @@ type
     k: TableRef[string, int]
     l: IntSet
     m: JsonNode
+    n: Uri
+    o: seq[int]
 
   VType = object
     case kind: G
@@ -56,8 +57,17 @@ proc fileSize(path: string): float =
 proc `$`(x: MyType): string {.used.} =
   result = "$1 -> $5, $2 - $3 : $4" % [ $x.c, $x.a, $x.b, $x.j, $x.e, $x.f ]
 
+proc hash*(url: Uri): Hash =
+  ## help hash URLs
+  var h: Hash = 0
+  for field in url.fields:
+    when field is string:
+      h = h !& field.hash
+    elif field is bool:
+      h = h !& field.hash
+  result = !$h
+
 proc hash(o: object): Hash =
-  echo "oh"
   var h: Hash = 0
   for k, v in fieldPairs(o):
     h = h !& hash(v)
@@ -116,9 +126,12 @@ proc hash(m: MyType): Hash =
   when compiles(m.m):
     if m.m != nil:
       h = h !& hash(m.m)
+  when compiles(m.n):
+    h = h !& hash(m.n)
+  h = h !& hash(m.o)
   result = !$h
 
-proc hash(m: seq[MyType]): Hash =
+proc hash(m: seq[MyType]): Hash {.used.} =
   var h: Hash = 0
   for item in items(m):
     h = h !& hash(item)
@@ -161,13 +174,13 @@ proc makeChunks(n: int): seq[MyType] =
     for i in 0 .. 40:
       l.incl rand(int.high)
     result.add MyType(a: rand(int n), b: rand(float n),
-                      e: G(n mod 2), #m: tJs,
+                      e: G(n mod 2), m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22),
                       h: (VType(kind: Even, even: 11),
                           VType(kind: Odd, odd: true)),
-                      l: l, k: kk)
+                      l: l, k: kk, n: tObj, o: tSeq)
     if len(result) > 1:
       # link the last item to the previous item
       result[^1].d = result[^2]
