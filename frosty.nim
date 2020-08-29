@@ -141,9 +141,12 @@ proc write(s: var Serializer[Stream]; o: string) =
   write(s.stream, o)        # put the str data
 
 proc read(s: var Serializer[Stream]; o: var string) =
-  var l = len(o)            # type inference
-  read(s.stream, l)         # get the str len
-  o = readStr(s.stream, l)  # get the str data
+  var l = len(o)                     # type inference
+  read(s.stream, l)                  # get the str len
+  setLen(o, l)                       # set the length
+  if l > 0:
+    if readData(s.stream, o.cstring, l) != l:
+      raise newException(ThawError, "short read!")
 
 proc write(s: var Serializer[Socket]; o: string) =
   var l = len(o)            # type inference
@@ -160,9 +163,10 @@ proc read(s: var Serializer[Socket]; o: var string) =
     raise newException(ThawError, "short read; socket closed?")
   # for the following recv(), "data must be initialized"
   setLen(o, l)
-  # receive the string
-  if recv(s.socket, data = o, size = l) != l:
-    raise newException(ThawError, "short read; socket closed?")
+  if l > 0:
+    # receive the string
+    if recv(s.socket, data = o, size = l) != l:
+      raise newException(ThawError, "short read; socket closed?")
 
 proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # compute p and store it
