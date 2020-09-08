@@ -8,25 +8,9 @@
 
 Serialize native Nim objects to strings, streams, or sockets.
 
-## Goals
-
-Making some assumptions (ie. that our types aren't changing) allows...
-
-- predictably fast performance
-- predictably mild memory behavior
-- predictably _idiomatic_ API
-- **hard to misuse**
-
-## Performance
-
-Frosty _can_ handle cyclic data structures, but **not** memory graphs
-of extreme size -- you can exhaust the stack because our traversal is
-implemented via recursion. This will be solved soon. [Benchmarks are available
-below.](https://github.com/disruptek/frosty#benchmarks)
-
 ## Example
 
-It currently looks like this:
+The API is comprised of just two functions; `freeze()` and `thaw()`.
 
 ```nim
 import frosty
@@ -59,9 +43,13 @@ var brrr = freeze("my data")
 assert thaw[string](brrr) == "my data"
 ```
 
-## Benchmarks
+## Performance
 
-[The source to the benchmark is found in the tests directory.](https://github.com/disruptek/frosty/blob/master/tests/bench.nim)
+Frosty _can_ handle cyclic data structures, but **not** memory graphs
+of extreme size -- you can exhaust the stack because our traversal is
+implemented via recursion. This will be solved soon.
+
+[The source to the following benchmark is found in the tests directory.](https://github.com/disruptek/frosty/blob/master/tests/bench.nim)
 
 ![benchmarks](docs/bench.svg "benchmarks")
 
@@ -75,6 +63,10 @@ or if you're still using Nimble like it's 2012,
 ```
 $ nimble install https://github.com/disruptek/frosty
 ```
+
+## Options
+
+- `--define:frostySorted=off` to use the standard library's `Table` type instead of Miran's `sorta` B-Trees.
 
 ## Documentation
 
