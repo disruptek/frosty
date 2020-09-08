@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/github/license/disruptek/frosty?style=flat)](#license)
 [![buy me a coffee](https://img.shields.io/badge/donate-buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/disruptek)
 
-Serialize native Nim objects via Streams, Sockets.  That is all.
+Serialize native Nim objects to strings, streams, or sockets.
 
 ## Goals
 

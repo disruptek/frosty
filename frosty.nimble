@@ -1,10 +1,10 @@
 version = "0.2.1"
 author = "disruptek"
-description = "serialize native Nim objects via streams, sockets"
+description = "serialize native Nim objects to strings, streams, or sockets"
 license = "MIT"
 
-requires "nim >= 1.0.0 & < 2.0.0"
 requires "https://github.com/narimiran/sorta < 1.0.0"
+requires "https://github.com/disruptek/criterion < 1.0.0"
 
 proc execCmd(cmd: string) =
   echo "exec: " & cmd
