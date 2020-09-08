@@ -4,6 +4,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/disruptek/frosty?style=flat)](https://github.com/disruptek/frosty/releases/latest)
 ![Minimum supported Nim version](https://img.shields.io/badge/nim-1.0.8%2B-informational?style=flat&logo=nim)
 [![License](https://img.shields.io/github/license/disruptek/frosty?style=flat)](#license)
+[![buy me a coffee](https://img.shields.io/badge/donate-buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/disruptek)
 
 Serialize native Nim objects via Streams, Sockets.  That is all.
 
@@ -18,9 +19,10 @@ Making some assumptions (ie. that our types aren't changing) allows...
 
 ## Performance
 
-Frosty can handle cyclic data structures, but not (yet) memory graphs of
-infinite size -- you can exhaust the stack. We have a solution for this in the
-works.
+Frosty _can_ handle cyclic data structures, but **not** memory graphs
+of extreme size -- you can exhaust the stack because our traversal is
+implemented via recursion. This will be solved soon. [Benchmarks are available
+below.](https://github.com/disruptek/frosty#benchmarks).
 
 ## Example
 
@@ -32,8 +34,8 @@ import frosty
 var
   data = someArbitraryDataFactory()
   handle = openFileStream("somefile", fmWrite)
-data.freeze(handle)
-handle.close
+freeze(data, handle)
+close handle
 ```
 
 and then
@@ -44,11 +46,11 @@ import frosty
 var
   data: SomeArbitraryType
   handle = openFileStream("somefile", fmRead)
-handle.thaw(data)
-handle.close
+thaw(handle, data)
+close handle
 ```
 
-Or simply
+or simply
 
 ```nim
 import frosty
@@ -56,6 +58,13 @@ import frosty
 var brrr = freeze("my data")
 assert thaw[string](brrr) == "my data"
 ```
+
+## Benchmarks
+
+[The source to the benchmark is found in the tests directory.](https://github.com/disruptek/frosty/blob/master/tests/bench.nim)
+
+![benchmarks](docs/bench.svg "benchmarks")
+
 
 ## Installation
 
@@ -69,17 +78,10 @@ $ nimble install https://github.com/disruptek/frosty
 
 ## Documentation
 
-I'm going to try a little harder with these docs by using `runnableExamples`
-so the documentation demonstrates _current_ usage examples and working tests
-despite the rapidly-evolving API.
-
-[See the documentation for the frosty module as generated directly from the
-source.](https://disruptek.github.io/frosty/frosty.html)
-
-## Testing
-
-There's a test and [a benchmark under `tests/`](https://github.com/disruptek/frosty/blob/master/tests/bench.nim); the benchmark requires
-[criterion](https://github.com/disruptek/criterion).
+[The documentation employs Nim's `runnableExamples` feature to
+ensure that usage examples are guaranteed to be accurate. The
+documentation is rebuilt during the CI process and hosted on
+GitHub.](https://disruptek.github.io/frosty/frosty.html)
 
 ## License
 MIT

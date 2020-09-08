@@ -75,6 +75,7 @@ for i in 0 .. 10:
 
 var cfg = newDefaultConfig()
 cfg.budget = 0.5
+cfg.brief = true
 
 benchmark cfg:
   var
@@ -86,11 +87,19 @@ benchmark cfg:
   proc read_seq() {.measure.} =
     discard ss.readSomething tSeq
 
+benchmark cfg:
+  var
+    ss = newStringStream()
+
   proc write_string() {.measure.} =
     ss.writeSomething tString
 
   proc read_string() {.measure.} =
     discard ss.readSomething tString
+
+benchmark cfg:
+  var
+    ss = newStringStream()
 
   proc write_obj() {.measure.} =
     ss.writeSomething tObj
@@ -98,13 +107,21 @@ benchmark cfg:
   proc read_obj() {.measure.} =
     discard ss.readSomething tObj
 
+benchmark cfg:
+  var
+    ss = newStringStream()
+
   proc write_intset() {.measure.} =
     ss.writeSomething tIntset
 
   proc read_intset() {.measure.} =
     let r = ss.readSomething tIntset
 
-  proc write_json_naive() {.measure.} =
+benchmark cfg:
+  var
+    ss = newStringStream()
+
+  proc write_json_stdlib() {.measure.} =
     ss.setPosition 0
     if count == 1:
       ss.write $tJs
@@ -112,16 +129,20 @@ benchmark cfg:
       for i in 1 .. count:
         ss.write $tJs
 
-  proc read_json_naive() {.measure.} =
+  proc read_json_stdlib() {.measure.} =
     ss.setPosition 0
     if count == 1:
-      discard parseJson(ss.readStr jsSize)
+      discard parseJson(ss.readStr jsSize).isNil
     else:
       for i in 1 .. count:
-        discard parseJson(ss.readStr jsSize)
+        discard parseJson(ss.readStr jsSize).isNil
 
-  proc write_json() {.measure.} =
+benchmark cfg:
+  var
+    ss = newStringStream()
+
+  proc write_json_frosty() {.measure.} =
     ss.writeSomething tJs
 
-  proc read_json() {.measure.} =
+  proc read_json_frosty() {.measure.} =
     let r = ss.readSomething tJs

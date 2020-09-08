@@ -1,34 +1,49 @@
 import std/macros
 import std/net
 import std/streams
-import std/tables
 
 # we'll only check hashes during debug builds
 when not defined(release):
   import std/strutils
   import std/hashes
 
-import sorta
-
 const
   frostyMagic* {.intdefine.} = 0xBADCAB ##
   ## A magic file value for our "format".
   frostyDebug {.booldefine.} = when defined(release): false else: true
+  frostySorted {.booldefine.} = true
 
   enableLists = false
+
+when frostySorted:
+  {.hint: "frosty using sorta".}
+  import sorta
+
+  type
+    Serializer[T] = object
+      stream: T
+      stack: seq[pointer]
+      ptrs: SortedTable[int, pointer]
+      when not defined(release):
+        indent: int
+
+else:
+  {.hint: "frosty using stdlib".}
+  import std/tables
+
+  type
+    Serializer[T] = object
+      stream: T
+      stack: seq[pointer]
+      ptrs: Table[int, pointer]
+      when not defined(release):
+        indent: int
 
 type
   FreezeError* = ValueError  ##
   ## An error raised during `freeze`.
   ThawError* = ValueError    ##
   ## An error raised during `thaw`.
-
-  Serializer[T] = object
-    stream: T
-    ptrs: SortedTable[int, pointer]
-    stack: seq[pointer]
-    when not defined(release):
-      indent: int
 
   Cube = object
     p: int
