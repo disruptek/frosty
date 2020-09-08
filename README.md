@@ -22,7 +22,7 @@ Making some assumptions (ie. that our types aren't changing) allows...
 Frosty _can_ handle cyclic data structures, but **not** memory graphs
 of extreme size -- you can exhaust the stack because our traversal is
 implemented via recursion. This will be solved soon. [Benchmarks are available
-below.](https://github.com/disruptek/frosty#benchmarks).
+below.](https://github.com/disruptek/frosty#benchmarks)
 
 ## Example
 
