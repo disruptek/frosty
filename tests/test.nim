@@ -9,16 +9,15 @@ import std/os
 import std/random
 import std/json
 
+import testes
+
 import frosty
 
 const
-  fn {.strdefine.} = "goats"
+  fn {.strdefine.} = "test-data.frosty"
 
 let
-  mode = if paramCount() < 1: "write" else: paramStr(1)
-  count = if paramCount() < 2: 1 else: parseInt paramStr(2)
-
-echo "testing " & mode & " against " & $count & " units in " & fn
+  count = when defined(release): 1000 else: 2
 
 type
   G = enum
@@ -187,25 +186,31 @@ proc makeChunks(n: int): seq[MyType] =
     dec n
 
 let vals = makeChunks(count)
+var q: typeof(vals)
 
-if mode == "write":
-  var fh = openFileStream(fn, fmWrite)
-  timer "write some goats":
-    freeze(vals, fh)
-  close fh
-  echo "file size in meg: ", fileSize(fn)
-elif not fileExists(fn):
-  echo "no input to read"
-  quit(1)
-else:
-  var q: typeof(vals)
-  var fh = openFileStream(fn, fmRead)
-  timer "read some goats":
-    thaw(fh, q)
-  close fh
-  for i in vals.low .. vals.high:
-    if hash(q[i]) != hash(vals[i]):
-      echo "index: ", i
-      echo " vals: ", vals[i]
-      echo "    q: ", q[i]
-      quit(1)
+for mode in [fmWrite, fmRead]:
+  var fh = openFileStream(fn, mode)
+  try:
+    case mode
+    of fmWrite:
+      testes:
+        ## writing values to stream
+        freeze(vals, fh)
+      echo "file size in meg: ", fileSize(fn)
+    of fmRead:
+      testes:
+        ## reading values from stream
+        thaw(fh, q)
+        block:
+          ## verify that read data matches
+          assert len(q) == len(vals)
+          for i in vals.low .. vals.high:
+            if hash(q[i]) != hash(vals[i]):
+              echo "index: ", i
+              echo " vals: ", vals[i]
+              echo "    q: ", q[i]
+              assert false, "audit fail"
+    else:
+      discard
+  finally:
+    close fh

@@ -1,1 +1,1 @@
-switch("path", "..")
+switch("path", "$config/..")

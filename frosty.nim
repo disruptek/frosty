@@ -10,10 +10,8 @@ when not defined(release):
 const
   frostyMagic* {.intdefine.} = 0xBADCAB ##
   ## A magic file value for our "format".
-  frostyDebug {.booldefine.} = when defined(release): false else: true
-  frostySorted {.booldefine.} = true
-
-  enableLists = false
+  frostyDebug* {.booldefine.} = when defined(release): false else: true
+  frostySorted* {.booldefine.} = false
 
 when frostySorted:
   {.hint: "frosty using sorta".}
@@ -75,7 +73,7 @@ proc read(s: var Serializer[Socket]; o: var string)
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
 proc readPrimitive[T](s: var Serializer[Socket]; o: var T)
 
-when enableLists:
+when false:
   import std/lists
 
   template makeListSupport(name: untyped): untyped =

@@ -4,9 +4,13 @@
 	branch = master
 [submodule "grok"]
 	path = grok
-	url = git+ssh://git@github.com/disruptek/grok
+	url = https://git@github.com/disruptek/grok
 	branch = master
 [submodule "criterion"]
 	path = criterion
-	url = git+ssh://git@github.com/disruptek/criterion
+	url = https://git@github.com/disruptek/criterion
+	branch = master
+[submodule "testes"]
+	path = testes
+	url = https://github.com/disruptek/testes
 	branch = master
