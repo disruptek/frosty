@@ -8,37 +8,40 @@
 
 Serialize native Nim objects to strings, streams, or sockets.
 
-## Example
+## Usage
 
-The API is comprised of just two functions; `freeze()` and `thaw()`.
+There are two operations: `freeze` and `thaw`.
 
+### `freeze[T](input: T; output: Socket or Stream or var string)`
 ```nim
 import frosty
 
 var
   data = someArbitraryDataFactory()
   handle = openFileStream("somefile", fmWrite)
+# write serialized data into the file handle
 freeze(data, handle)
 close handle
 ```
 
-and then
-
+### `thaw[T](input: Socket or Stream or string; output: var T)`
 ```nim
 import frosty
 
 var
   data: SomeArbitraryType
   handle = openFileStream("somefile", fmRead)
+# read deserialized data from the file handle
 thaw(handle, data)
 close handle
 ```
 
-or simply
-
+### `freeze[T](input: T): string`
+### `thaw[T](input: Socket or Stream or string): T`
 ```nim
 import frosty
 
+# adhoc serialization and deserialization
 var brrr = freeze("my data")
 assert thaw[string](brrr) == "my data"
 ```
