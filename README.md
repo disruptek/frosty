@@ -12,7 +12,7 @@ Serialize native Nim objects to strings, streams, or sockets.
 
 There are two operations: `freeze` and `thaw`.
 
-### `freeze[T](input: T; output: Socket or Stream or var string)`
+#### `freeze[T](input: T; output: Socket or Stream or var string)`
 ```nim
 import frosty
 
@@ -24,7 +24,7 @@ freeze(data, handle)
 close handle
 ```
 
-### `thaw[T](input: Socket or Stream or string; output: var T)`
+#### `thaw[T](input: Socket or Stream or string; output: var T)`
 ```nim
 import frosty
 
@@ -36,8 +36,8 @@ thaw(handle, data)
 close handle
 ```
 
-### `freeze[T](input: T): string`
-### `thaw[T](input: Socket or Stream or string): T`
+#### `freeze[T](input: T): string`
+#### `thaw[T](input: Socket or Stream or string): T`
 ```nim
 import frosty
 
