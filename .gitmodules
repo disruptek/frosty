@@ -14,3 +14,11 @@
 	path = testes
 	url = https://github.com/disruptek/testes
 	branch = master
+[submodule "skflatbuffers"]
+	path = skflatbuffers
+	url = https://github.com/disruptek/muffins
+	branch = nim1
+[submodule "skcbor"]
+	path = skcbor
+	url = https://github.com/Skrylar/skcbor
+	branch = master
