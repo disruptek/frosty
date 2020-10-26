@@ -53,7 +53,7 @@ template socket(s: Serializer): Socket = s.stream
 
 template refAddr(o: typed): int =
   when o is ref:
-    if o == nil: 0 else: cast[int](o)
+    if o.isNil: 0 else: cast[int](o)
   else:
     0
 
