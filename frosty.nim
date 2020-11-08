@@ -6,7 +6,7 @@ const
   ## A magic file value for our "format".
   frostyDebug* {.booldefine.} = when defined(release): false else: true
   frostySorted* {.booldefine.} = false
-  frostyNet* {.booldefine.} = true
+  frostyNet* {.booldefine.} = when defined(nimcore): false else: true
 
 # we'll only check hashes during debug builds
 when frostyDebug:
