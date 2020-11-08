@@ -18,6 +18,7 @@ proc execTest(test: string) =
     when (NimMajor, NimMinor) >= (1, 2):
       execCmd "nim c -d:frostySorted:off -d:danger --gc:arc -r -f " & test
   else:
+    execCmd "nim c             -d:frostySorted=on  -r -f " & test
     execCmd "nim c   -d:danger -d:frostySorted=on  -r -f " & test
     execCmd "nim cpp -d:danger -d:frostySorted=on  -r -f " & test
     execCmd "nim c   -d:danger -d:frostySorted=off -r -f " & test
