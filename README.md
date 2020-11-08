@@ -69,7 +69,7 @@ $ nimble install https://github.com/disruptek/frosty
 
 ## Options
 
-- `--define:frostySorted=off` to use the standard library's `Table` type instead of Miran's `sorta` B-Trees.
+- `--define:frostySorted=on` to use Miran's `sorta` B-Trees.
 - `--define:frostyNet=off` to omit `Socket` support for platform reasons.
 
 ## Documentation
