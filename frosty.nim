@@ -428,7 +428,7 @@ when frostyNet:
       if recv(s.socket, data = o, size = l) != l:
         raise newException(ThawError, "short read; socket closed?")
 
-  proc writePrimitive[T](s: var Serializer[Socket]; o: T) =
+  proc writePrimitive[T](s: var Serializer[Socket]; o: T) {.used.} =
     if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
       raise newException(FreezeError, "short write; socket closed?")
 
