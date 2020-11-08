@@ -14,7 +14,8 @@ when frostyDebug:
   import std/hashes
 
 when frostySorted:
-  {.hint: "frosty using sorta".}
+  when frostyDebug:
+    {.hint: "frosty using sorta".}
   import sorta
 
   type
@@ -26,7 +27,8 @@ when frostySorted:
         indent: int
 
 else:
-  {.hint: "frosty using stdlib".}
+  when frostyDebug:
+    {.hint: "frosty using stdlib".}
   import std/tables
 
   type
