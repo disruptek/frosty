@@ -326,7 +326,7 @@ proc read[S, T](s: var Serializer[S]; o: var seq[T]) =
   for item in mitems(o):  # iterate over mutable items
     s.read item           # read into the item
 
-proc writePrimitive[T](s: var Serializer[Stream]; o: T) =
+proc writePrimitive[T](s: var Serializer[Stream]; o: T) {.used.} =
   write(s.stream, o)
 
 proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
