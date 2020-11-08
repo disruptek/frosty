@@ -195,15 +195,16 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
       # it's a simple named tuple/object
       result = newCall(readTuple, s, o)
     else:
-      # it's an object variant; we need to unpack the discriminator first
-      result = newStmtList()
-      let disc = variant[0]        # the first IdentDefs under RecCase
-
-      let name = disc[0]           # the symbol of the discriminator
-      let dtyp = disc[1]           # the type of the discriminator
+      let
+        disc = variant[0]        # the first IdentDefs under RecCase
+        name = disc[0]           # the symbol of the discriminator
+        dtyp = disc[1]           # the type of the discriminator
 
       when defined(frostyDebug):
         echo dtyp.getTypeImpl.treeRepr
+
+      # it's an object variant; we need to unpack the discriminator first
+      result = newStmtList()
 
       # create a variable into which we can read the discriminator
       let kind = genSym(nskVar, "kind")
@@ -259,29 +260,21 @@ macro writeObject[S, T](s: var Serializer[S]; o: T; parent = 0) =
       # it's a simple named tuple/object
       result = newCall(writeTuple, s, o)
     else:
-      # it's an object variant; we need to pack the discriminator first
+      let
+        name = variant[0][0]   # the symbol of the discriminator
+        # prepare a parent=parent argument to writeTuple()
+        parent = nnkExprEqExpr.newTree(ident"parent", parent)
       result = newStmtList()
-      let disc = variant[0]        # the first IdentDefs under RecCase
-
-      let name = disc[0]           # the symbol of the discriminator
-
       # write the value of the discriminator
       result.add newCall(writer, s, newDotExpr(o, name))
-
       # prepare a skip="field" argument to writeTuple()
       let skipper = nnkExprEqExpr.newTree(ident"skip", newLit name.strVal)
-      # prepare a parent=parent argument to writeTuple()
-      let parent = nnkExprEqExpr.newTree(ident"parent", parent)
-
       # write the remaining fields as determined by the discriminator
       result.add newCall(writeTuple, s, o, skipper, parent)
-
   of nnkTupleTy:
-    # (name: "jeff", age: 34)
-    result = newCall(writeTuple, s, o)
+    result = newCall(writeTuple, s, o)   # (name: "jeff", age: 34)
   of nnkTupleConstr:
-    # ("jeff", 34)
-    result = newCall(writeTuple, s, o)
+    result = newCall(writeTuple, s, o)   # ("jeff", 34)
   else:
     error "attempt to write unrecognized type: " & $typ.kind
 
@@ -478,4 +471,3 @@ when frostyNet:
     else:
       var s = newSerializer(socket)
       s.read o
-

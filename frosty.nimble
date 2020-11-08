@@ -16,6 +16,7 @@ proc execTest(test: string) =
     execCmd "nim c -d:frostySorted:on  -r -f " & test
     execCmd "nim c -d:frostySorted:off -r -f " & test
     when (NimMajor, NimMinor) >= (1, 2):
+      execCmd "nim c -d:frostySorted:on -d:danger --gc:arc -r -f " & test
       execCmd "nim c -d:frostySorted:off -d:danger --gc:arc -r -f " & test
   else:
     execCmd "nim c             -d:frostySorted=on  -r -f " & test
@@ -32,6 +33,7 @@ proc execTest(test: string) =
 
 task test, "run tests for ci":
   execTest("tests/test.nim")
+  execTest("tests/tvariant.nim")
 
 task bench, "generate benchmark":
   exec "termtosvg docs/bench.svg --max-frame-duration=3000 --loop-delay=3000 --screen-geometry=80x30 --template=window_frame_powershell --command=\"nim c --gc:arc --define:danger -r tests/bench.nim\""

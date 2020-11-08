@@ -203,13 +203,15 @@ for mode in [fmWrite, fmRead]:
     case mode
     of fmWrite:
       testes:
-        ## writing values to stream
-        freeze(vals, fh)
+        block:
+          ## writing values to stream
+          freeze(vals, fh)
       echo "file size in meg: ", fileSize(fn)
     of fmRead:
       testes:
-        ## reading values from stream
-        thaw(fh, q)
+        block:
+          ## reading values from stream
+          thaw(fh, q)
         block:
           ## verify that read data matches
           assert len(q) == len(vals)
