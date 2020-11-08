@@ -255,7 +255,7 @@ proc write[S, T](s: var Serializer[S]; o: seq[T]) =
     # write the data into the string
     s.freeze q
     # check that it matches our expectation
-    assert len(s) == sizeof(frostyMagic) + sizeof(0) + 5*sizeof(0)
+    assert len(s) == sizeof(frostyMagic) + sizeof(5) + 5*sizeof(0)
     # prepare a new seq to hold some data
     var l: seq[int]
     # populate the seq using the string as input
