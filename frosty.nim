@@ -199,47 +199,33 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
         disc = variant[0]        # the first IdentDefs under RecCase
         name = disc[0]           # the symbol of the discriminator
         dtyp = disc[1]           # the type of the discriminator
-
       when defined(frostyDebug):
         echo dtyp.getTypeImpl.treeRepr
-
       # it's an object variant; we need to unpack the discriminator first
       result = newStmtList()
-
       # create a variable into which we can read the discriminator
       let kind = genSym(nskVar, "kind")
-
       # declare our kind variable with its value type
       result.add nnkVarSection.newTree(newIdentDefs(kind, dtyp,
                                                     newEmptyNode()))
-
       # read the value of the discriminator into our `kind` variable
       result.add newCall(reader, s, kind)
-
       # create an object constructor for the variant object
       var ctor = nnkObjConstr.newNimNode
-
       # the first child is the name of the object type
       ctor.add ident(sym.strVal)
-
       # add `name: kind` to the variant object constructor
       ctor.add newColonExpr(name, kind)
-
       # assign it to the input symbol
       result.add newAssignment(o, ctor)
-
       # prepare a skip="field" argument to readTuple()
       let skipper = nnkExprEqExpr.newTree(ident"skip", newLit name.strVal)
-
       # read the remaining fields as determined by the discriminator
       result.add newCall(readTuple, s, o, skipper)
-
   of nnkTupleTy:
-    # (name: "jeff", age: 34)
-    result = newCall(readTuple, s, o)
+    result = newCall(readTuple, s, o)   # (name: "jeff", age: 34)
   of nnkTupleConstr:
-    # ("jeff", 34)
-    result = newCall(readTuple, s, o)
+    result = newCall(readTuple, s, o)   # ("jeff", 34)
   else:
     error "attempt to read unrecognized type: " & $typ.kind
 
