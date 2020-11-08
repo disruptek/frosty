@@ -20,6 +20,7 @@ let
   count = when defined(release): 1000 else: 2
 
 type
+  S = distinct string
   G = enum
     Even
     Odd
@@ -42,8 +43,10 @@ type
     m: JsonNode
     n: Uri
     o: seq[int]
+    s: S
 
   VType = object
+    ignore: bool
     case kind: G
     of Even:
       even: int
@@ -103,6 +106,7 @@ proc hash[A, B](t: TableRef[A, B]): Hash =
 
 proc hash(t: VType): Hash =
   var h: Hash = 0
+  h = h !& hash(t.ignore)
   h = h !& hash(t.kind)
   case t.kind
   of Even:
@@ -110,6 +114,8 @@ proc hash(t: VType): Hash =
   of Odd:
     h = h !& hash(t.odd)
   result = !$h
+
+proc hash(s: S): Hash {.borrow.}
 
 proc hash(m: MyType): Hash =
   var h: Hash = 0
@@ -124,6 +130,7 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
+  h = h !& hash(m.s)
   when compiles(m.m):
     if m.m != nil:
       h = h !& hash(m.m)
@@ -178,9 +185,9 @@ proc makeChunks(n: int): seq[MyType] =
                       e: G(n mod 2), m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
                       i: @["one", "", "", "", "", "", "two"],
-                      g: ("hello", 22),
-                      h: (VType(kind: Even, even: 11),
-                          VType(kind: Odd, odd: true)),
+                      g: ("hello", 22), s: "foo".S,
+                      h: (VType(ignore: true, kind: Even, even: 11),
+                          VType(ignore: false, kind: Odd, odd: true)),
                       l: l, k: kk, n: tObj, o: tSeq)
     if len(result) > 1:
       # link the last item to the previous item

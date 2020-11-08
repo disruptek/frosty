@@ -43,7 +43,7 @@ type
   ThawError* = ValueError    ##
   ## An error raised during `thaw`.
 
-  Cube = object
+  Ice = object
     p: int
     when not defined(release):
       h: Hash
@@ -66,6 +66,7 @@ proc read[S, T](s: var Serializer[S]; o: var seq[T])
 proc write(s: var Serializer[Stream]; o: string)
 proc read(s: var Serializer[Stream]; o: var string)
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
+proc writePrimitive[T](s: var Serializer[Stream]; o: T)
 
 when frostyNet:
   import std/net
@@ -130,7 +131,7 @@ proc read(s: var Serializer[Stream]; o: var string) =
 
 proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # compute p and store it
-  var g = Cube(p: refAddr(o))
+  var g = Ice(p: refAddr(o))
   # if it's nonzero, also compute hash
   audit(o, g)
 
@@ -145,16 +146,31 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
       else:
         raise newException(FreezeError, "unexpected cycle")
 
-proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = false) =
-  var skip = skip
+proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
+  var skipped = skip == ""
   for k, val in fieldPairs(o):
-    if skip:
-      skip = false
+    if not skipped and k == skip:
+      skipped = true
     else:
       # create a var that we can pass to the read()
       var x: typeof(val)
       s.read x
       val = x
+
+proc writeTuple[S, T](s: var Serializer[S]; o: T; skip = ""; parent = 0) =
+  var skipped = skip == ""
+  s.greatenIndent:
+    for k, val in fieldPairs(o):
+      if not skipped and k == skip:
+        skipped = true
+      else:
+        when val is ref:
+          s.write val, parent = parent
+        else:
+          s.write val
+        when defined(frostyDebug):
+          let q = repr(val)
+          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
 
 macro readObject[S, T](s: var Serializer[S]; o: var T) =
   # do nothing by default
@@ -169,15 +185,14 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
     echo typ.repr
   case typ.kind
   of nnkObjectTy:
-    let fields = typ[^1] # RecList
-    case fields[0].kind
-    of nnkIdentDefs:
-      # named tuple/object
+    let variant = findChild(typ[^1], it.kind == nnkRecCase)
+    if variant.isNil:
+      # it's a simple named tuple/object
       result = newCall(readTuple, s, o)
-    of nnkRecCase:
-      # object variant
+    else:
+      # it's an object variant; we need to unpack the discriminator first
       result = newStmtList()
-      let disc = fields[0][0]      # the first IdentDefs under RecCase
+      let disc = variant[0]        # the first IdentDefs under RecCase
 
       let name = disc[0]           # the symbol of the discriminator
       let dtyp = disc[1]           # the type of the discriminator
@@ -207,14 +222,11 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
       # assign it to the input symbol
       result.add newAssignment(o, ctor)
 
-      # prepare a skip=true argument to readTuple()
-      let skip = nnkExprEqExpr.newTree(ident"skip", ident"true")
+      # prepare a skip="field" argument to readTuple()
+      let skipper = nnkExprEqExpr.newTree(ident"skip", newLit name.strVal)
 
       # read the remaining fields as determined by the discriminator
-      result.add newCall(readTuple, s, o, skip)  # skip 1st field
-
-    else:
-      error "unrecognized type format: \n" & treeRepr(typ)
+      result.add newCall(readTuple, s, o, skipper)
 
   of nnkTupleTy:
     # (name: "jeff", age: 34)
@@ -225,12 +237,57 @@ macro readObject[S, T](s: var Serializer[S]; o: var T) =
   else:
     error "attempt to read unrecognized type: " & $typ.kind
 
+macro writeObject[S, T](s: var Serializer[S]; o: T; parent = 0) =
+  # do nothing by default
+  result = newEmptyNode()
+  let
+    writeTuple = bindSym"writeTuple"
+    writer = bindSym("writePrimitive", rule = brClosed)
+    typ = o.getTypeImpl
+  when defined(frostyDebug):
+    echo typ.treeRepr
+    echo typ.repr
+  case typ.kind
+  of nnkObjectTy:
+    let variant = findChild(typ[^1], it.kind == nnkRecCase)
+    if variant.isNil:
+      # it's a simple named tuple/object
+      result = newCall(writeTuple, s, o)
+    else:
+      # it's an object variant; we need to pack the discriminator first
+      result = newStmtList()
+      let disc = variant[0]        # the first IdentDefs under RecCase
+
+      let name = disc[0]           # the symbol of the discriminator
+
+      when defined(frostyDebug):
+        echo dtyp.getTypeImpl.treeRepr
+
+      # write the value of the discriminator
+      result.add newCall(writer, s, newDotExpr(o, name))
+
+      # prepare a skip="field" argument to writeTuple()
+      let skipper = nnkExprEqExpr.newTree(ident"skip", newLit name.strVal)
+      # prepare a parent=parent argument to writeTuple()
+      let parent = nnkExprEqExpr.newTree(ident"parent", parent)
+
+      # write the remaining fields as determined by the discriminator
+      result.add newCall(writeTuple, s, o, skipper, parent)
+
+  of nnkTupleTy:
+    # (name: "jeff", age: 34)
+    result = newCall(writeTuple, s, o)
+  of nnkTupleConstr:
+    # ("jeff", 34)
+    result = newCall(writeTuple, s, o)
+  else:
+    error "attempt to write unrecognized type: " & $typ.kind
 
 proc read[S, T](s: var Serializer[S]; o: var ref T) =
   const
     unlikely = cast[pointer](-1)
   var
-    g: Cube
+    g: Ice
   s.read g
   if g.p == 0:
     o = nil
@@ -279,17 +336,7 @@ proc writePrimitive[T](s: var Serializer[Stream]; o: T) =
 
 proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
   when T is object or T is tuple:
-    when defined(frostyDebug):
-      s.debung $typeof(o)
-    s.greatenIndent:
-      for k, val in fieldPairs(o):
-        when val is ref:
-          s.write val, parent = parent
-        else:
-          s.write val
-        when defined(frostyDebug):
-          let q = repr(val)
-          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
+    writeObject(s, o, parent = parent)
   else:
     writePrimitive(s, o)
 
