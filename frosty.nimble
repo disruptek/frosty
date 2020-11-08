@@ -1,6 +1,6 @@
 version = "0.2.3"
 author = "disruptek"
-description = "serialize native Nim objects to strings, streams, or sockets"
+description = "serialize native Nim types to strings, streams, or sockets"
 license = "MIT"
 
 requires "https://github.com/narimiran/sorta < 1.0.0"

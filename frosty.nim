@@ -1,17 +1,17 @@
 import std/macros
-import std/net
 import std/streams
-
-# we'll only check hashes during debug builds
-when not defined(release):
-  import std/strutils
-  import std/hashes
 
 const
   frostyMagic* {.intdefine.} = 0xBADCAB ##
   ## A magic file value for our "format".
   frostyDebug* {.booldefine.} = when defined(release): false else: true
   frostySorted* {.booldefine.} = false
+  frostyNet* {.booldefine.} = true
+
+# we'll only check hashes during debug builds
+when frostyDebug:
+  import std/strutils
+  import std/hashes
 
 when frostySorted:
   {.hint: "frosty using sorta".}
@@ -48,9 +48,6 @@ type
     when not defined(release):
       h: Hash
 
-# convenience to make certain calls more legible
-template socket(s: Serializer): Socket = s.stream
-
 template refAddr(o: typed): int =
   when o is ref:
     if o.isNil: 0 else: cast[int](o)
@@ -68,47 +65,17 @@ proc write[S, T](s: var Serializer[S]; o: seq[T])
 proc read[S, T](s: var Serializer[S]; o: var seq[T])
 proc write(s: var Serializer[Stream]; o: string)
 proc read(s: var Serializer[Stream]; o: var string)
-proc write(s: var Serializer[Socket]; o: string)
-proc read(s: var Serializer[Socket]; o: var string)
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
-proc readPrimitive[T](s: var Serializer[Socket]; o: var T)
 
-when false:
-  import std/lists
+when frostyNet:
+  import std/net
 
-  template makeListSupport(name: untyped): untyped =
-    proc write[T](s: var Serializer; o: name[T]) =
-      when compiles(len(o)):
-        var l = len(o)           # type inference
-      else:
-        var l = 0
-        for item in items(o):
-          inc l
+  proc write(s: var Serializer[Socket]; o: string)
+  proc read(s: var Serializer[Socket]; o: var string)
+  proc readPrimitive[T](s: var Serializer[Socket]; o: var T)
 
-      s.write l
-      for item in items(o):
-        s.write item.value
-        dec l
-      assert l == 0
-
-    proc read[T](s: var Serializer; o: var name[T]) =
-      o = `init name`[T]()
-      when compiles(len(o)):
-        var l = len(o)           # type inference
-      else:
-        var l = 0
-      s.read l
-      while l > 0:
-        var value: T
-        s.read value
-        o.append value
-        dec l
-
-  # generate serialize/deserialize for some linked lists and rings
-  makeListSupport SinglyLinkedList
-  makeListSupport DoublyLinkedList
-  makeListSupport SinglyLinkedRing
-  makeListSupport DoublyLinkedRing
+  # convenience to make certain calls more legible
+  template socket(s: Serializer): Socket = s.stream
 
 template greatenIndent(s: var Serializer; body: untyped): untyped =
   ## Used for debugging.
@@ -160,26 +127,6 @@ proc read(s: var Serializer[Stream]; o: var string) =
   if l > 0:
     if readData(s.stream, o.cstring, l) != l:
       raise newException(ThawError, "short read!")
-
-proc write(s: var Serializer[Socket]; o: string) =
-  var l = len(o)            # type inference
-  # send the length of the string
-  if send(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
-    raise newException(FreezeError, "short write; socket closed?")
-  # send the string itself; this can raise...
-  send(s.socket, data = o)
-
-proc read(s: var Serializer[Socket]; o: var string) =
-  var l = len(o)            # type inference
-  # receive the string size
-  if recv(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
-    raise newException(ThawError, "short read; socket closed?")
-  # for the following recv(), "data must be initialized"
-  setLen(o, l)
-  if l > 0:
-    # receive the string
-    if recv(s.socket, data = o, size = l) != l:
-      raise newException(ThawError, "short read; socket closed?")
 
 proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # compute p and store it
@@ -330,10 +277,6 @@ proc read[S, T](s: var Serializer[S]; o: var seq[T]) =
 proc writePrimitive[T](s: var Serializer[Stream]; o: T) =
   write(s.stream, o)
 
-proc writePrimitive[T](s: var Serializer[Socket]; o: T) =
-  if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
-    raise newException(FreezeError, "short write; socket closed?")
-
 proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
   when T is object or T is tuple:
     when defined(frostyDebug):
@@ -353,23 +296,11 @@ proc write[S, T](s: var Serializer[S]; o: T; parent = 0) =
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
   streams.read(s.stream, o)
 
-proc readPrimitive[T](s: var Serializer[Socket]; o: var T) =
-  if net.recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
-    raise newException(ThawError, "short read; socket closed?")
-
 proc read[S, T](s: var Serializer[S]; o: var T) =
   when T is object or T is tuple:
     readObject(s, o)
   else:
     readPrimitive(s, o)
-
-proc freeze*[T](o: T; socket: Socket) =
-  ## Send `o` via `socket`.
-  ##
-  ## A "magic" value will be written, first.
-  var s = newSerializer(socket)
-  s.write frostyMagic
-  s.write o
 
 proc freeze*[T](o: T; stream: Stream) =
   ## Write `o` into `stream`.
@@ -434,20 +365,6 @@ proc thaw*[T](stream: Stream; o: var T) =
     var s = newSerializer(stream)
     s.read o
 
-proc thaw*[T](socket: Socket; o: var T) =
-  ## Receive `o` from `socket`.
-  ##
-  ## First, a "magic" value will be read.  A `ThawError`
-  ## will be raised if the magic value is not as expected.
-  var v: int
-  if recv(socket, data = addr v, size = sizeof(v)) != sizeof(v):
-    raise newException(ThawError, "short read; socket closed?")
-  if v != frostyMagic:
-    raise newException(ThawError, "expected magic " & $frostyMagic)
-  else:
-    var s = newSerializer(socket)
-    s.read o
-
 proc thaw*[T](str: string; o: var T) =
   ## Read `o` from `str`.
   ##
@@ -461,3 +378,55 @@ proc thaw*[T](str: string): T =
   ##
   ## A "magic" value must prefix the input string.
   thaw(str, result)
+
+when frostyNet:
+  proc write(s: var Serializer[Socket]; o: string) =
+    var l = len(o)            # type inference
+    # send the length of the string
+    if send(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
+      raise newException(FreezeError, "short write; socket closed?")
+    # send the string itself; this can raise...
+    send(s.socket, data = o)
+
+  proc read(s: var Serializer[Socket]; o: var string) =
+    var l = len(o)            # type inference
+    # receive the string size
+    if recv(s.socket, data = addr l, size = sizeof(l)) != sizeof(l):
+      raise newException(ThawError, "short read; socket closed?")
+    # for the following recv(), "data must be initialized"
+    setLen(o, l)
+    if l > 0:
+      # receive the string
+      if recv(s.socket, data = o, size = l) != l:
+        raise newException(ThawError, "short read; socket closed?")
+
+  proc writePrimitive[T](s: var Serializer[Socket]; o: T) =
+    if send(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+      raise newException(FreezeError, "short write; socket closed?")
+
+  proc readPrimitive[T](s: var Serializer[Socket]; o: var T) =
+    if net.recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
+      raise newException(ThawError, "short read; socket closed?")
+
+  proc freeze*[T](o: T; socket: Socket) =
+    ## Send `o` via `socket`.
+    ##
+    ## A "magic" value will be written, first.
+    var s = newSerializer(socket)
+    s.write frostyMagic
+    s.write o
+
+  proc thaw*[T](socket: Socket; o: var T) =
+    ## Receive `o` from `socket`.
+    ##
+    ## First, a "magic" value will be read.  A `ThawError`
+    ## will be raised if the magic value is not as expected.
+    var v: int
+    if recv(socket, data = addr v, size = sizeof(v)) != sizeof(v):
+      raise newException(ThawError, "short read; socket closed?")
+    if v != frostyMagic:
+      raise newException(ThawError, "expected magic " & $frostyMagic)
+    else:
+      var s = newSerializer(socket)
+      s.read o
+
