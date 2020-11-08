@@ -145,15 +145,6 @@ proc hash(m: seq[MyType]): Hash {.used.} =
     h = h !& hash(item)
   result = !$h
 
-template timer(name: string; body: untyped): untyped =
-  var clock = cpuTime()
-  try:
-    body
-    echo name, " took ", cpuTime() - clock
-  except CatchableError as e:
-    echo e.msg
-    echo name, " failed after ", cpuTime() - clock
-
 let
   tJs = %* {
     "goats": ["pigs", "horses"],
