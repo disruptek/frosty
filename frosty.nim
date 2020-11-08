@@ -260,9 +260,6 @@ macro writeObject[S, T](s: var Serializer[S]; o: T; parent = 0) =
 
       let name = disc[0]           # the symbol of the discriminator
 
-      when defined(frostyDebug):
-        echo dtyp.getTypeImpl.treeRepr
-
       # write the value of the discriminator
       result.add newCall(writer, s, newDotExpr(o, name))
 
