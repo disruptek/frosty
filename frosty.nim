@@ -7,7 +7,7 @@ const
   frostyDebug* {.booldefine.} =
     when defined(nimcore): false
     elif defined(release): false
-    else: true
+    else: false
   frostySorted* {.booldefine.} = false
   frostyNet* {.booldefine.} = when defined(nimcore): false else: true
 
