@@ -153,29 +153,34 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
 
 proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
   var skipped = skip == ""
-  for k, val in fieldPairs(o):
-    if not skipped and k == skip:
-      skipped = true
-    else:
-      # create a var that we can pass to the read()
-      var x: typeof(val)
-      s.read x
-      val = x
-
-proc writeTuple[S, T](s: var Serializer[S]; o: T; skip = ""; parent = 0) =
-  var skipped = skip == ""
+  s.debung $typeof(o)
   s.greatenIndent:
     for k, val in fieldPairs(o):
       if not skipped and k == skip:
         skipped = true
       else:
+        when defined(frostyDebug):
+          s.debung k & ": " & $typeof(val)
+        # create a var that we can pass to the read()
+        var x: typeof(val)
+        s.read x
+        val = x
+
+proc writeTuple[S, T](s: var Serializer[S]; o: T; skip = ""; parent = 0) =
+  var skipped = skip == ""
+  s.debung $typeof(o)
+  s.greatenIndent:
+    for k, val in fieldPairs(o):
+      if not skipped and k == skip:
+        skipped = true
+      else:
+        when defined(frostyDebug):
+          let q = "???" # repr(val)
+          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
         when val is ref:
           s.write val, parent = parent
         else:
           s.write val
-        when defined(frostyDebug):
-          let q = repr(val)
-          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
 
 macro readObject[S, T](s: var Serializer[S]; o: var T) =
   # do nothing by default
@@ -301,9 +306,11 @@ proc write[S, T](s: var Serializer[S]; o: seq[T]) =
     # confirm that the two sequences of data match
     assert l == q
 
-  s.write len(o)
-  for item in items(o):
-    s.write item
+  s.greatenIndent:
+    s.write len(o)
+    for i, item in pairs o:
+      s.debung $i & " " & $typeof(item) & " items " & $len(o)
+      s.write item
 
 proc read[S, T](s: var Serializer[S]; o: var seq[T]) =
   var l = len(o)          # type inference
