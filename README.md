@@ -71,6 +71,7 @@ $ nimble install https://github.com/disruptek/frosty
 
 - `--define:frostySorted=on` to use Miran's `sorta` B-Trees.
 - `--define:frostyNet=off` to omit `Socket` support for platform reasons.
+- `--define:frostyDebug=on` to emit some debugging output.
 
 ## Documentation
 
