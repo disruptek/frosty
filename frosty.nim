@@ -418,7 +418,7 @@ proc thaw*[T](str: string; o: var T) =
     # prepare a string
     var s: string
     # write the data into the string
-    s.freeze q
+    q.freeze s
     # check that it matches our expectation
     assert len(s) == sizeof(frostyMagic) + sizeof(5) + 5*sizeof(0)
     # prepare a new seq to hold some data
