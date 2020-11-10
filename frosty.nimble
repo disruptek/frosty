@@ -1,4 +1,4 @@
-version = "0.3.0"
+version = "0.3.1"
 author = "disruptek"
 description = "serialize native Nim types to strings, streams, or sockets"
 license = "MIT"
