@@ -1,4 +1,4 @@
-version = "0.2.4"
+version = "0.3.0"
 author = "disruptek"
 description = "serialize native Nim types to strings, streams, or sockets"
 license = "MIT"
@@ -13,8 +13,8 @@ proc execCmd(cmd: string) =
 
 proc execTest(test: string) =
   when getEnv("GITHUB_ACTIONS", "false") != "true":
-    execCmd "nim c -d:frostySorted:on  -r -f " & test
-    execCmd "nim c -d:frostySorted:off -r -f " & test
+    execCmd "nim c -d:frostySorted:on  -d:danger -r -f " & test
+    execCmd "nim c -d:frostySorted:off -d:danger -r -f " & test
     when (NimMajor, NimMinor) >= (1, 2):
       execCmd "nim c -d:frostySorted:on -d:danger --gc:arc -r -f " & test
       execCmd "nim c -d:frostySorted:off -d:danger --gc:arc -r -f " & test

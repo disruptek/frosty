@@ -176,7 +176,7 @@ proc makeChunks(n: int): seq[MyType] =
                       e: G(n mod 2), m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
                       i: @["one", "", "", "", "", "", "two"],
-                      g: ("hello", 22), s: "foo".S,
+                      g: ("hello", 22), s: S("string " & spaces(n)),
                       h: (VType(ignore: true, kind: Even, even: 11),
                           VType(ignore: false, kind: Odd, odd: true)),
                       l: l, k: kk, n: tObj, o: tSeq)
