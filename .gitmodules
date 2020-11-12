@@ -22,3 +22,11 @@
 	path = skcbor
 	url = https://github.com/Skrylar/skcbor
 	branch = master
+[submodule "flatty"]
+	path = flatty
+	url = https://github.com/treeform/flatty
+	branch = master
+[submodule "jason"]
+	path = jason
+	url = https://github.com/disruptek/jason
+	branch = master

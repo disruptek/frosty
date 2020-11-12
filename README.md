@@ -52,7 +52,13 @@ Frosty _can_ handle cyclic data structures, but **not** memory graphs
 of extreme size -- you can exhaust the stack because our traversal is
 implemented via recursion. This will be solved soon.
 
+### Benchmark vs. Flatty
+
 [The source to the following benchmark is found in the tests directory.](https://github.com/disruptek/frosty/blob/master/tests/bench.nim)
+
+The benchmark compares frosty to https://github.com/treeform/flatty for a
+few static datatypes -- flatty does not seem to be able to read `IntSet` or
+`JsonNode` types yet.
 
 ![benchmarks](docs/bench.svg "benchmarks")
 
