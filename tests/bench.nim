@@ -14,7 +14,7 @@ when not defined(danger):
   {.error: "define danger for benchmarks".}
 
 var cfg = newDefaultConfig()
-cfg.budget = 0.5
+cfg.budget = 1.0
 cfg.brief = true
 
 template strop(s: string): NimNode = nnkAccQuoted.newTree(ident s)
