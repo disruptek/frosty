@@ -8,9 +8,9 @@ import std/tables
 import std/os
 import std/random
 import std/json
+import std/options
 
 import testes
-
 import frosty
 
 const
@@ -43,6 +43,7 @@ type
     m: JsonNode
     n: Uri
     o: seq[int]
+    p: Option[F]
     s: S
 
   VType = object
@@ -131,6 +132,7 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.k)
   h = h !& hash(m.l)
   h = h !& hash(m.s)
+  h = h !& hash(m.p)
   when compiles(m.m):
     if m.m != nil:
       h = h !& hash(m.m)
@@ -175,6 +177,7 @@ proc makeChunks(n: int): seq[MyType] =
     result.add MyType(a: rand(int n), b: rand(float n),
                       e: G(n mod 2), m: tJs,
                       j: jj, c: $n, f: F(x: 66, y: 77),
+                      p: F(x: 44, y: 33.0).some,
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22), s: S("string " & spaces(n)),
                       h: (VType(ignore: true, kind: Even, even: 11),
