@@ -4,11 +4,11 @@
 	branch = master
 [submodule "grok"]
 	path = grok
-	url = https://git@github.com/disruptek/grok
+	url = https://github.com/disruptek/grok
 	branch = master
 [submodule "criterion"]
 	path = criterion
-	url = https://git@github.com/disruptek/criterion
+	url = https://github.com/disruptek/criterion
 	branch = master
 [submodule "testes"]
 	path = testes
