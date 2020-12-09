@@ -35,5 +35,5 @@ task test, "run tests for ci":
   execTest("tests/test.nim")
   execTest("tests/tvariant.nim")
 
-task bench, "generate benchmark":
-  exec "termtosvg docs/bench.svg --max-frame-duration=5000 --loop-delay=10000 --screen-geometry=80x30 --template=window_frame_powershell --command=\"nim c --gc:arc --define:danger -r tests/bench.nim\""
+task demo, "generate benchmark":
+  exec """demo docs/bench.svg "nim c --out=\$1 --gc:arc --define:danger tests/bench.nim""""
