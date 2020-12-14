@@ -202,21 +202,6 @@ macro read(s: var Serializer; o: var typed) =
     # a naive read of any other arbitrary type
     result = newCall(bindSym"readPrimitive", s, o)
 
-proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
-  var skipped = skip == ""
-  s.debung $typeof(o)
-  s.greatenIndent:
-    for k, val in fieldPairs(o):
-      if not skipped and k == skip:
-        skipped = true
-      else:
-        when defined(frostyDebug):
-          s.debung k & ": " & $typeof(val)
-        # create a var that we can pass to the read()
-        var x: typeof(val)
-        s.read x
-        val = x
-
 template greatenIndent(s: var Serializer; body: untyped): untyped =
   ## Used for debugging.
   when frostyDebug:
@@ -255,6 +240,21 @@ template audit(o: typed; g: typed) =
       else:
         # else, save it
         g.h = h
+
+proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
+  var skipped = skip == ""
+  s.debung $typeof(o)
+  s.greatenIndent:
+    for k, val in fieldPairs(o):
+      if not skipped and k == skip:
+        skipped = true
+      else:
+        when defined(frostyDebug):
+          s.debung k & ": " & $typeof(val)
+        # create a var that we can pass to the read()
+        var x: typeof(val)
+        s.read x
+        val = x
 
 proc writeString[T](s: var Serializer[Stream]; o: T) =
   write(s.stream, len(o))   # put the str len
