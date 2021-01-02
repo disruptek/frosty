@@ -126,5 +126,5 @@ when isMainModule:
   bench tSeq
   bench tString
   bench tObj
-  #bench tIntset
+  bench tIntset
   #bench tJs
