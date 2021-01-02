@@ -1,3 +1,4 @@
+import std/typetraits
 import std/macros
 import std/streams
 
@@ -233,13 +234,10 @@ template audit(o: typed; g: typed) =
           hash(o[])
         else:
           hash(g.p)
-      # if we read a hash,
-      if g.h != 0:
-        # check it,
-        assert g.h == h
-      else:
-        # else, save it
-        g.h = h
+      if g.h != 0:         # if we read a hash,
+        assert g.h == h    #   check it,
+      else:                # else,
+        g.h = h            #   save it
 
 proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
   var skipped = skip == ""
@@ -271,11 +269,9 @@ proc readString[T](s: var Serializer[Stream]; o: var T) =
 proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
   # compute p and store it
   var g = Ice(p: refAddr(o))
-  # if it's nonzero, also compute hash
-  audit(o, g)
+  audit(o, g)        # if it's nonzero, also compute hash
 
-  # write the preamble
-  s.write g
+  s.write g          # write the preamble
   if g.p != 0:
     if not hasKeyOrPut(s.ptrs, g.p, cast[pointer](o)):
       # we haven't written the value for this address yet,
@@ -320,16 +316,15 @@ proc read[S, T](s: var Serializer[S]; o: var ref T) =
       o = new (ref T)
       s.ptrs[g.p] = cast[pointer](o)
       s.read o[]
-      # after you read it, check the hash
-      audit(o, g)
+      audit(o, g)     # after you read it, check the hash
     else:
       o = cast[ref T](p)
 
 proc writeSequence[S, T](s: var Serializer[S]; o: seq[T]) =
   s.greatenIndent:
     s.write len(o)
-    for i, item in pairs o:
-      s.debung $i & " " & $typeof(item) & " items " & $len(o)
+    for i, item in o.pairs:
+      s.debung $i & " " & $typeof(item) & " items " & $o.len
       s.write item
 
 proc readSequence[S, T](s: var Serializer[S]; o: var seq[T]) =
@@ -337,7 +332,7 @@ proc readSequence[S, T](s: var Serializer[S]; o: var seq[T]) =
     var l = len(o)          # type inference
     s.read l                # get the len of the seq
     o.setLen(l)             # pre-alloc the sequence
-    for item in mitems(o):  # iterate over mutable items
+    for item in o.mitems:   # iterate over mutable items
       s.read item           # read into the item
 
 proc writePrimitive[T](s: var Serializer[Stream]; o: T) {.used.} =
@@ -346,12 +341,19 @@ proc writePrimitive[T](s: var Serializer[Stream]; o: T) {.used.} =
 proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
   streams.read(s.stream, o)
 
-proc freeze*[T](o: T; stream: Stream) =
+template guard(T: typed; body: typed) =
+  ## don't try to serialize stuff we can't copy
+  when supportsCopyMem T:
+    body
+  else:
+    {.error: "frosty cannot operate on " & $T.}
+
+proc freeze*[T](stream: Stream; o: T) =
   ## Write `o` into `stream`.
   var s = newSerializer(stream)
   s.write o
 
-proc freeze*[T](o: T; str: var string) =
+proc freeze*[T](str: var string; o: T) =
   ## Write `o` into `str`.
   runnableExamples:
     import uri
@@ -360,7 +362,7 @@ proc freeze*[T](o: T; str: var string) =
     # prepare a string
     var s: string
     # write the data into the string
-    freeze(q, s)
+    freeze(s, q)
     # prepare a new url object
     var url: Uri
     # populate the url using the string as input
@@ -368,11 +370,12 @@ proc freeze*[T](o: T; str: var string) =
     # confirm that two objects match
     assert url == q
 
-  var ss = newStringStream(str)
-  freeze(o, ss)
-  setPosition(ss, 0)
-  str = readAll(ss)
-  close ss
+  guard T:
+    var ss = newStringStream(str)
+    freeze(ss, o)
+    setPosition(ss, 0)
+    str = readAll(ss)
+    close ss
 
 proc freeze*[T](o: T): string =
   ## Turn `o` into a string.
@@ -387,12 +390,14 @@ proc freeze*[T](o: T): string =
     # confirm that two objects match
     assert u == q
 
-  freeze(o, result)
+  guard T:
+    freeze(result, o)
 
 proc thaw*[T](stream: Stream; o: var T) =
   ## Read `o` from `stream`.
-  var s = newSerializer(stream)
-  s.read o
+  guard T:
+    var s = newSerializer(stream)
+    s.read o
 
 proc thaw*[T](str: string; o: var T) =
   ## Read `o` from `str`.
@@ -402,7 +407,7 @@ proc thaw*[T](str: string; o: var T) =
     # prepare a string
     var s: string
     # write the data into the string
-    q.freeze s
+    s.freeze q
     # check that it matches our expectation
     assert len(s) == sizeof(int) + 5*sizeof(int)
     # prepare a new seq to hold some data
@@ -412,13 +417,15 @@ proc thaw*[T](str: string; o: var T) =
     # confirm that the two sequences of data match
     assert l == q
 
-  var ss = newStringStream(str)
-  thaw(ss, o)
-  close ss
+  guard T:
+    var ss = newStringStream(str)
+    thaw(ss, o)
+    close ss
 
 proc thaw*[T](str: string): T =
   ## Read value of `T` from `str`.
-  thaw(str, result)
+  guard T:
+    thaw[T](str, result)
 
 when frostyNet:
   proc writeString[T](s: var Serializer[Socket]; o: T) =
@@ -449,14 +456,16 @@ when frostyNet:
     if net.recv(s.socket, data = addr o, size = sizeof(o)) != sizeof(o):
       raise newException(ThawError, "short read; socket closed?")
 
-  proc freeze*[T](o: T; socket: Socket) =
+  proc freeze*[T](socket: Socket; o: T) =
     ## Send `o` via `socket`.
-    var s = newSerializer(socket)
-    s.write o
+    guard T:
+      var s = newSerializer(socket)
+      s.write o
 
   proc thaw*[T](socket: Socket; o: var T) =
     ## Receive `o` from `socket`.
-    var s = newSerializer(socket)
-    s.read o
+    guard T:
+      var s = newSerializer(socket)
+      s.read o
 
 {.pop.}

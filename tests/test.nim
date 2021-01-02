@@ -199,8 +199,11 @@ for mode in [fmWrite, fmRead]:
       testes:
         block:
           ## writing values to stream
-          freeze(vals, fh)
-      echo "file size in meg: ", fileSize(fn)
+          freeze(fh, vals)
+        block:
+          ## flush the stream
+          flush fh
+          checkpoint "file size in meg: ", fileSize(fn)
     of fmRead:
       testes:
         block:
@@ -208,13 +211,20 @@ for mode in [fmWrite, fmRead]:
           thaw(fh, q)
         block:
           ## verify that read data matches
-          assert len(q) == len(vals)
+          check q.len == vals.len
           for i in vals.low .. vals.high:
             if hash(q[i]) != hash(vals[i]):
-              echo "index: ", i
-              echo " vals: ", vals[i]
-              echo "    q: ", q[i]
-              assert false, "audit fail"
+              checkpoint "index: ", i
+              checkpoint " vals: ", vals[i]
+              checkpoint "    q: ", q[i]
+              fail"bad audit"
+        block:
+          ## test a simple string freeze/thaw chain
+          const
+            foo = "foo bar"
+          let x = freeze foo
+          check thaw[string](x) == foo
+          check freeze(foo).thaw[string]() == foo
     else:
       discard
   finally:
