@@ -55,9 +55,9 @@ type
       odd: bool
 
 proc fileSize(path: string): float =
-  when not defined(Windows) or not defined(gcArc):
-    # nim bug #15286; no problem outside arc
-    result = getFileInfo(path).size.float / (1024*1024)
+  #when not defined(Windows) or not defined(gcArc):
+  #  # nim bug #15286; no problem outside arc
+  result = getFileInfo(path).size.float / (1024*1024)
 
 proc `$`(x: MyType): string {.used.} =
   result = "$1 -> $5, $2 - $3 : $4" % [ $x.c, $x.a, $x.b, $x.j, $x.e, $x.f ]
