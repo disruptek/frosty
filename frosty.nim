@@ -2,13 +2,13 @@ import std/typetraits
 import std/macros
 import std/streams
 
+import cps
+import cps/eventqueue
+
 const
-  frostyDebug* {.booldefine.} =
-    when defined(nimcore): false
-    elif defined(release): false
-    else: false
+  frostyDebug* {.booldefine.} = false
   frostySorted* {.booldefine.} = false
-  frostyNet* {.booldefine.} = when defined(nimcore): false else: true
+  frostyNet* {.booldefine.} = true
 
 # we'll only check hashes during debug builds
 when frostyDebug:
@@ -29,7 +29,7 @@ when frostySorted:
   import sorta
 
   type
-    Serializer[T] = object
+    Serializer[T] = ref object of Cont
       stream: T
       stack: seq[pointer]
       ptrs: SortedTable[int, pointer]
@@ -42,10 +42,11 @@ else:
   import std/tables
 
   type
-    Serializer[T] = object
+    Serializer[T] = ref object of Cont
       stream: T
       stack: seq[pointer]
       ptrs: Table[int, pointer]
+      pos: int
       when frostyDebug:
         indent: int
 
@@ -61,9 +62,6 @@ template refAddr(o: typed): int =
   else:
     0
 
-proc newSerializer[S](source: S): Serializer[S] {.raises: [].} =
-  result = Serializer[S](stream: source)
-
 proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0)
 proc read[S, T](s: var Serializer[S]; o: var ref T)
 proc writeSequence[S, T](s: var Serializer[S]; o: seq[T])
@@ -74,6 +72,134 @@ proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
 proc writePrimitive[T](s: var Serializer[Stream]; o: T)
 proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "")
 proc writeTuple[S, T](s: var Serializer[S]; o: T; skip = ""; parent = 0)
+
+type
+  Bytes = concept c
+    len(c) is int
+    sizeof(c[int]) == sizeof(byte)
+    setLen(c, int)                      ## arrays unsupported (yet)
+
+  Bs = concept c
+    c[] is Bytes
+
+  Copy = concept c
+    supportsCopyMem c
+    c isnot string
+
+  Other = not(string or Copy)           ## not copyable
+
+proc newSerializer[S](source: S): auto {.raises: [].} =
+  when source is Bytes:
+    result = Serializer[ptr S](stream: unsafeAddr source)
+  else:
+    result = Serializer[S](stream: source)
+
+template head(s: Bytes): pointer = unsafeAddr s[0]
+template head(p: not Bytes): pointer = unsafeAddr p
+
+# pointer reads; can't use Bytes because dumb
+proc `{}`(s: string or seq; index: int): pointer =
+  unsafeAddr s[index]
+proc `{}`(s: string or seq; index: BackwardsIndex): pointer =
+  unsafeAddr s[len(s) - index.int]
+proc `{}`[T: Bs](s: Serializer[T];
+                 pos: int or BackwardsIndex): pointer =
+  s.stream[]{pos}
+
+# pointer writes
+template `[]=`(s: Serializer[Bs]; pos: untyped; o: typed) =
+  cast[ptr typeof o](s{pos})[] = o
+proc assign[T](o: var T; s: pointer) =
+  o = cast[ptr T](s)[]
+proc grow[T: Bs](s: Serializer[T]; n: int) =
+  setLen(s.stream[], len(s.stream[]) + n)
+
+template willWrite(s: Serializer[Bs]; n: int; body: untyped) =
+  ## maybe perform a write and ensure we have enough output to do so
+  if n > 0:
+    grow(s, n)
+    body
+
+template willRead(s: Serializer[Bs]; n: int; body: untyped) =
+  ## maybe perform a read and ensure we have enough input to do so
+  if n > 0:
+    if s.pos > len(s.stream[]) - n:
+      raise newException(ThawError, $(len(s.stream[]) - s.pos) &
+                                    " bytes left; need " & $n)
+    else:
+      body
+      inc s.pos, n
+
+proc write[T: Copy or Other](s: var Serializer[Bs]; o: T) =
+  const l = sizeof o
+  s.willWrite l:
+    when o is Copy:
+      copyMem(s{^l}, head o, l)
+    elif o is Other:
+      s[^l] = o
+    else:
+      {.error: $T & " is not supported by frosty".}
+
+proc read[T: Copy or Other](s: var Serializer[Bs]; o: var T) =
+  const l = sizeof o
+  s.willRead l:
+    when o is Copy:
+      copyMem(head o, s{s.pos}, l)
+    elif o is Other:
+      o.assign s{s.pos}
+    else:
+      {.error: $T & " is not supported by frosty".}
+
+proc write[T: string](s: var Serializer[Bs]; o: T) =
+  var l = len o
+  s.write l
+  s.willWrite l:
+    copyMem(s{^l}, head o, l)
+
+proc read[T: string](s: var Serializer[Bs]; o: var T) =
+  var l = len o
+  s.read l
+  s.willRead l:
+    o.setLen l
+    copyMem(head o, s{s.pos}, l)
+
+proc write[T: not Copy](s: var Serializer[Bs]; o: seq[T]) =
+  template n: int = len o
+  s.write n
+  # XXX: optimize a grow here?
+  for n in o.items:
+    s.write n
+
+proc read[T: not Copy](s: var Serializer[Bs]; o: var seq[T]) =
+  var n = len o
+  s.read n
+  o.setLen n
+  for i in 0 ..< n:
+    s.read o[i]
+
+proc write[T: Copy](s: var Serializer[Bs]; o: seq[T]) =
+  const l = sizeof T
+  template z: int = l * o.len
+  s.write o.len
+  s.willWrite z:
+    copyMem(s{^z}, head o, z)
+
+proc read[T: Copy](s: var Serializer[Bs]; o: var seq[T]) =
+  const l = sizeof T
+  var n = len o
+  template z: int = l * n
+  s.read n
+  o.setLen n
+  s.willRead z:
+    copyMem(head o, s{s.pos}, z)
+
+# support for the macros
+proc writePrimitive[T](s: var Serializer[Bs]; o: T) = s.write o
+proc readPrimitive[T](s: var Serializer[Bs]; o: var T) = s.read o
+proc writeSequence[T](s: var Serializer[Bs]; o: T) = s.write o
+proc readSequence[T](s: var Serializer[Bs]; o: var T) = s.read o
+proc writeString[T](s: var Serializer[Bs]; o: T) = s.write o
+proc readString[T](s: var Serializer[Bs]; o: var T) = s.read o
 
 # (try to) ignore the string->string conversion warning
 {.push hint[ConvFromXtoItselfNotNeeded]: off.}
@@ -203,23 +329,6 @@ macro read(s: var Serializer; o: var typed) =
     # a naive read of any other arbitrary type
     result = newCall(bindSym"readPrimitive", s, o)
 
-template greatenIndent(s: var Serializer; body: untyped): untyped =
-  ## Used for debugging.
-  when frostyDebug:
-    s.indent = s.indent + 2
-    defer:
-      s.indent = s.indent - 2
-  body
-
-template debung(s: Serializer; msg: string): untyped =
-  ## Used for debugging.
-  when frostyDebug:
-    when not defined(nimdoc):
-      echo spaces(s.indent) & msg
-
-when not defined(nimdoc):
-  export greatenIndent, debung
-
 template audit(o: typed; g: typed) =
   when not frostyDebug:
     discard
@@ -241,18 +350,14 @@ template audit(o: typed; g: typed) =
 
 proc readTuple[S, T](s: var Serializer[S]; o: var T; skip = "") =
   var skipped = skip == ""
-  s.debung $typeof(o)
-  s.greatenIndent:
-    for k, val in fieldPairs(o):
-      if not skipped and k == skip:
-        skipped = true
-      else:
-        when defined(frostyDebug):
-          s.debung k & ": " & $typeof(val)
-        # create a var that we can pass to the read()
-        var x: typeof(val)
-        s.read x
-        val = x
+  for k, val in fieldPairs(o):
+    if not skipped and k == skip:
+      skipped = true
+    else:
+      # create a var that we can pass to the read()
+      var x: typeof(val)
+      s.read x
+      val = x
 
 proc writeString[T](s: var Serializer[Stream]; o: T) =
   write(s.stream, len(o))   # put the str len
@@ -283,23 +388,14 @@ proc write[S, T](s: var Serializer[S]; o: ref T; parent = 0) =
 
 proc writeTuple[S, T](s: var Serializer[S]; o: T; skip = ""; parent = 0) =
   var skipped = skip == ""
-  s.debung $typeof(o)
-  s.greatenIndent:
-    for k, val in fieldPairs(o):
-      if not skipped and k == skip:
-        skipped = true
+  for k, val in fieldPairs(o):
+    if not skipped and k == skip:
+      skipped = true
+    else:
+      when val is ref:
+        s.write val, parent = parent
       else:
-        when defined(frostyDebug):
-          let q =
-            when val is ref or val is object:
-              "???"
-            else:
-              repr(val)
-          s.debung k & ": " & $typeof(val) & " = " & q[low(q)..min(20, high(q))]
-        when val is ref:
-          s.write val, parent = parent
-        else:
-          s.write val
+        s.write val
 
 proc read[S, T](s: var Serializer[S]; o: var ref T) =
   const
@@ -321,19 +417,16 @@ proc read[S, T](s: var Serializer[S]; o: var ref T) =
       o = cast[ref T](p)
 
 proc writeSequence[S, T](s: var Serializer[S]; o: seq[T]) =
-  s.greatenIndent:
-    s.write len(o)
-    for i, item in o.pairs:
-      s.debung $i & " " & $typeof(item) & " items " & $o.len
-      s.write item
+  s.write len(o)
+  for i, item in o.pairs:
+    s.write item
 
 proc readSequence[S, T](s: var Serializer[S]; o: var seq[T]) =
-  s.greatenIndent:
-    var l = len(o)          # type inference
-    s.read l                # get the len of the seq
-    o.setLen(l)             # pre-alloc the sequence
-    for item in o.mitems:   # iterate over mutable items
-      s.read item           # read into the item
+  var l = len(o)          # type inference
+  s.read l                # get the len of the seq
+  o.setLen(l)             # pre-alloc the sequence
+  for item in o.mitems:   # iterate over mutable items
+    s.read item           # read into the item
 
 proc writePrimitive[T](s: var Serializer[Stream]; o: T) {.used.} =
   write(s.stream, o)
@@ -343,39 +436,35 @@ proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
 
 template guard(T: typed; body: typed) =
   ## don't try to serialize stuff we can't copy
-  when supportsCopyMem T:
+  when T is seq or T is string or T is object or supportsCopyMem T:
     body
   else:
     {.error: "frosty cannot operate on " & $T.}
 
 proc freeze*[T](stream: Stream; o: T) =
   ## Write `o` into `stream`.
-  var s = newSerializer(stream)
+  var s = newSerializer stream
   s.write o
 
-proc freeze*[T](str: var string; o: T) =
-  ## Write `o` into `str`.
+proc freeze*[T](bytes: var Bytes; o: T) =
+  ## Write `o` into `bytes`.
   runnableExamples:
     import uri
     # start with some data
-    var q = parseUri"https://github.org/nim-lang/Nim"
+    let q = parseUri"https://github.org/nim-lang/Nim"
     # prepare a string
     var s: string
     # write the data into the string
-    freeze(s, q)
-    # prepare a new url object
+    s.freeze q
+    # prepare a new uri object
     var url: Uri
-    # populate the url using the string as input
-    thaw(s, url)
+    # populate the uri using the string as input
+    s.thaw url
     # confirm that two objects match
     assert url == q
 
-  guard T:
-    var ss = newStringStream(str)
-    freeze(ss, o)
-    setPosition(ss, 0)
-    str = readAll(ss)
-    close ss
+  var s = newSerializer bytes
+  s.write o
 
 proc freeze*[T](o: T): string =
   ## Turn `o` into a string.
@@ -384,27 +473,27 @@ proc freeze*[T](o: T): string =
     # start with some data
     var q = parseUri"https://github.org/nim-lang/Nim"
     # freeze `q` into `s`
-    var s = freeze(q)
+    var s = freeze q
     # thaw `s` into `u`
-    var u = thaw[Uri](s)
+    var u = s.thaw Uri
     # confirm that two objects match
     assert u == q
 
-  guard T:
-    freeze(result, o)
+  var s = newSerializer result
+  s.write o
+  result = s.stream[]
 
 proc thaw*[T](stream: Stream; o: var T) =
   ## Read `o` from `stream`.
-  guard T:
-    var s = newSerializer(stream)
-    s.read o
+  var s = newSerializer stream
+  s.read o
 
-proc thaw*[T](str: string; o: var T) =
-  ## Read `o` from `str`.
+proc thaw*[T](bytes: Bytes; o: var T) =
+  ## Read `o` from `bytes`.
   runnableExamples:
     # start with some data
     var q = @[1, 1, 2, 3, 5]
-    # prepare a string
+    # prepare a string to hold the data
     var s: string
     # write the data into the string
     s.freeze q
@@ -417,15 +506,17 @@ proc thaw*[T](str: string; o: var T) =
     # confirm that the two sequences of data match
     assert l == q
 
-  guard T:
-    var ss = newStringStream(str)
-    thaw(ss, o)
-    close ss
+  var s = newSerializer bytes
+  s.read o
 
-proc thaw*[T](str: string): T =
-  ## Read value of `T` from `str`.
-  guard T:
-    thaw[T](str, result)
+proc thaw*[R](src: R; T: typedesc): T =
+  ## Read value of type `T` from serial source `src`.
+  var s = newSerializer src
+  s.read result
+
+proc thaw*[T](bytes: Bytes): T =
+  ## Read value of `T` from serial source `bytes`.
+  result = thaw(bytes, T)
 
 when frostyNet:
   proc writeString[T](s: var Serializer[Socket]; o: T) =
@@ -458,14 +549,12 @@ when frostyNet:
 
   proc freeze*[T](socket: Socket; o: T) =
     ## Send `o` via `socket`.
-    guard T:
-      var s = newSerializer(socket)
-      s.write o
+    var s = newSerializer socket
+    s.write o
 
   proc thaw*[T](socket: Socket; o: var T) =
     ## Receive `o` from `socket`.
-    guard T:
-      var s = newSerializer(socket)
-      s.read o
+    var s = newSerializer socket
+    s.read o
 
 {.pop.}
