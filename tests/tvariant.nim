@@ -1,4 +1,4 @@
-import testes
+import balls
 import frosty
 
 type
@@ -13,7 +13,7 @@ type
     of Odd:
       odd: bool
 
-testes:
+suite "object variants":
   var s: string
   block:
     ## write a case object

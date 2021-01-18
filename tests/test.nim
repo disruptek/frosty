@@ -10,7 +10,7 @@ import std/random
 import std/json
 import std/options
 
-import testes
+import balls
 import frosty
 
 const
@@ -196,13 +196,13 @@ for mode in [fmWrite, fmRead]:
   try:
     case mode
     of fmWrite:
-      testes:
+      suite "writes":
         block:
           ## writing values to stream
           freeze(vals, fh)
       echo "file size in meg: ", fileSize(fn)
     of fmRead:
-      testes:
+      suite "reads":
         block:
           ## reading values from stream
           thaw(fh, q)
