@@ -1,4 +1,4 @@
-version = "0.4.6"
+version = "0.4.7"
 author = "disruptek"
 description = "serialize native Nim types to strings, streams, or sockets"
 license = "MIT"
@@ -7,7 +7,7 @@ when defined(frostySorted):
   requires "https://github.com/narimiran/sorta < 1.0.0"
 when not defined(release):
   requires "https://github.com/disruptek/criterion < 1.0.0"
-  requires "https://github.com/disruptek/balls#rc"
+  requires "https://github.com/disruptek/balls > 2.0.0 & < 4.0.0"
 
 task test, "run unit tests":
   when defined(windows):
