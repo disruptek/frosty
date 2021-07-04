@@ -11,7 +11,52 @@ import std/json
 import std/options
 
 import balls
-import frosty
+import frosty #/streams as brrr
+
+template testFreeze(body: untyped): untyped =
+  var ss = newStringStream()
+  try:
+    freeze(ss, body)
+    freeze(ss, body)
+    setPosition(ss, 0)
+    readAll ss
+  finally:
+    close ss
+
+template testThaw(body: untyped; into: typed): untyped =
+  let ss = newStringStream(body)
+  try:
+    thaw(ss, into)
+    let r = thaw[typeof(into)](ss)
+    check r == into, "api insane"
+  finally:
+    close ss
+
+template roundTrip(value: typed): untyped =
+  let foo = testFreeze: value
+  check foo.len != 0
+  var bar: typeof(value)
+  check bar == default typeof(bar)
+  testThaw(foo, bar)
+  check bar == value
+  check bar != default typeof(bar)
+
+suite "frosty basics":
+  ## write a primitive and read it back
+  roundTrip 46
+  ## write an enum and read it back
+  type E = enum One, Two, Three
+  roundTrip Two
+  ## write a set and read it back
+  roundTrip {Two, Three}
+  ## write a string and read it back
+  roundTrip NimVersion
+  ## write a sequence and read it back
+  roundTrip @["goats", "pigs"]
+  ## write a named tuple and read it back
+  roundTrip (food: "pigs", quantity: 43)
+  ## write a tuple and read it back
+  roundTrip ("pigs", 43, 22.0, Three)
 
 const
   fn {.strdefine.} = "test-data.frosty"
@@ -35,7 +80,7 @@ type
     e: G
     f: F
     g: (string, int)
-    h: (VType, VType)
+    h: (VType, VType, VType, VType, VType)
     i: seq[string]
     j: Table[string, int]
     k: TableRef[string, int]
@@ -45,6 +90,7 @@ type
     o: seq[int]
     p: Option[F]
     s: S
+    t, u: int
 
   VType = object
     ignore: bool
@@ -53,6 +99,13 @@ type
       even: int
     of Odd:
       odd: bool
+      case also: uint8
+      of 3:
+        discard
+      of 4:
+        omg, wtf, bbq: float
+      else:
+        `!!!11! whee`: string
 
 proc fileSize(path: string): float =
   when not defined(Windows) or not defined(gcArc):
@@ -114,6 +167,16 @@ proc hash(t: VType): Hash =
     h = h !& hash(t.even)
   of Odd:
     h = h !& hash(t.odd)
+    h = h !& hash(t.also)
+    case t.also
+    of 3:
+      discard
+    of 4:
+      h = h !& hash(t.wtf)
+      h = h !& hash(t.omg)
+      h = h !& hash(t.bbq)
+    else:
+      h = h !& hash(t.`!!!11! whee`)
   result = !$h
 
 proc hash(s: S): Hash {.borrow.}
@@ -133,6 +196,8 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.l)
   h = h !& hash(m.s)
   h = h !& hash(m.p)
+  h = h !& hash(m.t)
+  h = h !& hash(m.u)
   when compiles(m.m):
     if m.m != nil:
       h = h !& hash(m.m)
@@ -181,8 +246,11 @@ proc makeChunks(n: int): seq[MyType] =
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22), s: S("string " & spaces(n)),
                       h: (VType(ignore: true, kind: Even, even: 11),
+                          VType(kind: Odd, also: 3),
+                          VType(kind: Odd, also: 4, wtf: 5.4, bbq: 6.6),
+                          VType(kind: Odd, also: 5, `!!!11! whee`: "lol"),
                           VType(ignore: false, kind: Odd, odd: true)),
-                      l: l, k: kk, n: tObj, o: tSeq)
+                      l: l, k: kk, n: tObj, o: tSeq, t: 55, u: 66)
     if len(result) > 1:
       # link the last item to the previous item
       result[^1].d = result[^2]
@@ -199,22 +267,22 @@ for mode in [fmWrite, fmRead]:
       suite "writes":
         block:
           ## writing values to stream
-          freeze(vals, fh)
+          fh.freeze vals
       echo "file size in meg: ", fileSize(fn)
     of fmRead:
       suite "reads":
         block:
           ## reading values from stream
-          thaw(fh, q)
+          fh.thaw q
         block:
           ## verify that read data matches
-          assert len(q) == len(vals)
+          check len(q) == len(vals)
           for i in vals.low .. vals.high:
             if hash(q[i]) != hash(vals[i]):
-              echo "index: ", i
-              echo " vals: ", vals[i]
-              echo "    q: ", q[i]
-              assert false, "audit fail"
+              checkpoint "index: ", i
+              checkpoint " vals: ", vals[i]
+              checkpoint "    q: ", q[i]
+              fail"audit fail"
     else:
       discard
   finally:

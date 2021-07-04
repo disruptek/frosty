@@ -45,7 +45,7 @@ macro bench(n: typed) =
 
   pbody = newStmtList()
   pbody.add newCall(ident"setPosition", ss, newLit 0)
-  pbody.add newCall(ident"freeze", n, ss)
+  pbody.add newCall(ident"freeze", ss, n)
   body.add newProc(strop "frosty_write_" & n.nameType,
                    pragmas = pragmas, body = pbody)
 

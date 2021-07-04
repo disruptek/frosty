@@ -5,6 +5,7 @@
 ![Minimum supported Nim version](https://img.shields.io/badge/nim-1.0.8%2B-informational?style=flat&logo=nim)
 [![License](https://img.shields.io/github/license/disruptek/frosty?style=flat)](#license)
 [![buy me a coffee](https://img.shields.io/badge/donate-buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/disruptek)
+[![Matrix](https://img.shields.io/matrix/disruptek:matrix.org?style=flat&logo=matrix)](https://matrix.to/#/#disruptek:matrix.org)
 
 Serialize native Nim types to strings, streams, or sockets.
 
@@ -12,7 +13,7 @@ Serialize native Nim types to strings, streams, or sockets.
 
 There are two operations: `freeze` and `thaw`.
 
-#### `freeze[T](input: T; output: Socket or Stream or var string)`
+#### `freeze[T](output: Socket or Stream or var string; input: T)`
 ```nim
 import frosty
 
@@ -20,7 +21,7 @@ var
   data = someArbitraryDataFactory()
   handle = openFileStream("somefile", fmWrite)
 # write serialized data into the file handle
-freeze(data, handle)
+freeze(handle, data)
 close handle
 ```
 
@@ -48,9 +49,7 @@ assert thaw[string](brrr) == "my data"
 
 ## Performance
 
-Frosty _can_ handle cyclic data structures, but **not** memory graphs
-of extreme size -- you can exhaust the stack because our traversal is
-implemented via recursion. This will be solved soon.
+Frosty _can_ handle cyclic data structures.
 
 ### Benchmark vs. Flatty
 
@@ -71,12 +70,6 @@ or if you're still using Nimble like it's 2012,
 ```
 $ nimble install https://github.com/disruptek/frosty
 ```
-
-## Options
-
-- `--define:frostySorted=on` to use Miran's `sorta` B-Trees.
-- `--define:frostyNet=off` to omit `Socket` support for platform reasons.
-- `--define:frostyDebug=on` to emit some debugging output.
 
 ## Documentation
 
