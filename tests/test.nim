@@ -27,7 +27,7 @@ template testThaw(body: untyped; into: typed): untyped =
   let ss = newStringStream(body)
   try:
     thaw(ss, into)
-    let r = thaw[typeof(into)](ss)
+    let r = thaw[typeof(into)](body)
     check r == into, "api insane"
   finally:
     close ss
