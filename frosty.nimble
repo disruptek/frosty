@@ -3,13 +3,14 @@ author = "disruptek"
 description = "serialize native Nim types to strings, streams, or sockets"
 license = "MIT"
 
-when defined(frostySorted):
-  requires "https://github.com/narimiran/sorta < 1.0.0"
 when not defined(release):
-  requires "https://github.com/disruptek/criterion < 1.0.0"
   requires "https://github.com/disruptek/balls > 2.0.0 & < 4.0.0"
 
+installExt = @["nim"]       # i have no idea why i might need this
+skipDirs = @["tests"]       # so stupid...  who doesn't want tests?
+
 task test, "run unit tests":
+  # nim bug https://github.com/nim-lang/Nim/issues/16661
   when defined(windows):
     exec "balls.cmd"
   else:

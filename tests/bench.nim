@@ -20,6 +20,8 @@ cfg.brief = true
 template strop(s: string): NimNode = nnkAccQuoted.newTree(ident s)
 
 macro bench(n: typed) =
+  const count = 1_000      ## iterations to perform in the benchmark
+
   proc nameType(n: NimNode): string =
     result = repr n.getTypeImpl
     if "\n" in result:
@@ -45,19 +47,22 @@ macro bench(n: typed) =
 
   pbody = newStmtList()
   pbody.add newCall(ident"setPosition", ss, newLit 0)
-  pbody.add newCall(ident"freeze", n, ss)
+  for i in 0 .. count:
+    pbody.add newCall(ident"freeze", ss, n)
   body.add newProc(strop "frosty_write_" & n.nameType,
                    pragmas = pragmas, body = pbody)
 
   pbody = newStmtList()
   pbody.add newCall(ident"setPosition", ss, newLit 0)
-  pbody.add newCall(ident"thaw", ss, data)
+  for i in 0 .. count:
+    pbody.add newCall(ident"thaw", ss, data)
   body.add newProc(strop "frosty_read_" & n.nameType,
                    pragmas = pragmas, body = pbody)
 
   pbody = newStmtList()
   pbody.add newCall(ident"setPosition", ss, newLit 0)
-  pbody.add newCall(ident"write", ss, newCall(ident"toFlatty", n))
+  for i in 0 .. count:
+    pbody.add newCall(ident"write", ss, newCall(ident"toFlatty", n))
   body.add newProc(strop "flatty_write_" & n.nameType,
                    pragmas = pragmas, body = pbody)
 
@@ -66,12 +71,17 @@ macro bench(n: typed) =
   #let typ = genSym(nskType, "typ")
   #let typ = bindSym(getType n)
   let typ = newCall(ident"typeof", n)
-  pbody.add:
-    newTree nnkDiscardStmt:
-      newCall(ident"fromFlatty", newCall(ident"readAll", ss), typ)
+  for i in 0 .. count:
+    pbody.add:
+      newTree nnkDiscardStmt:
+        newCall(ident"fromFlatty", newCall(ident"readAll", ss), typ)
   let ex = genSym(nskLet, "e")
-  let errs = newStmtList(
-    newCall(ident"once", newCall(ident"echo", newDotExpr(ex, ident"msg"))))
+  let errs = newStmtList()
+  errs.add:
+    newCall ident"once":
+      newCall(ident"echo",
+        newLit "flatty read crashed during " & n.nameType & " test:\n",
+        newDotExpr(ex, ident"msg"))
   pbody = nnkTryStmt.newTree(pbody,
                              newTree(nnkExceptBranch,
                                      infix(ident"Exception", "as", ex),

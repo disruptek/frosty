@@ -4,6 +4,8 @@ on:
     - cron: '30 5 * * *'
 
   push:
+    branches:
+      - master
     paths:
       - '**.cfg'
       - '**.nims'
@@ -12,6 +14,8 @@ on:
       - 'tests/**'
       - '.github/workflows/ci.yml'
   pull_request:
+    branches:
+      - '*'
     paths:
       - '**.cfg'
       - '**.nims'
@@ -25,44 +29,37 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [version-1-0, version-1-2, version-1-4, devel]
-        target: [linux, macos, windows]
-        include:
-          - target: linux
-            builder: ubuntu-18.04
-          - target: macos
-            builder: macos-10.15
-          - target: windows
-            builder: windows-2019
-    name: '${{ matrix.target }} (${{ matrix.branch }})'
-    runs-on: ${{ matrix.builder }}
+        os: ['windows-latest', 'macos-latest', 'ubuntu-latest']
+        nim: ['devel']
+    name: '${{ matrix.os }} (${{ matrix.nim }})'
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          path: frosty
+          path: ci
 
       - name: Setup Nim
         uses: alaviss/setup-nim@0.1.1
         with:
           path: nim
-          version: ${{ matrix.branch }}
+          version: ${{ matrix.nim }}
 
       - name: Run tests
         shell: bash
         run: |
-          cd frosty
-          nimble --accept develop
+          cd ci
+          nimble --accept install
           nimble test
 
       - name: Build docs
         if: ${{ matrix.docs }} == 'true'
         shell: bash
         run: |
-          cd frosty
+          cd ci
           branch=${{ github.ref }}
           branch=${branch##*/}
-          nimble doc --project --outdir:docs \
+          nimble doc --path="." --project --outdir:docs \
             '--git.url:https://github.com/${{ github.repository }}' \
             '--git.commit:${{ github.sha }}' \
             "--git.devel:$branch" \
@@ -73,9 +70,9 @@ jobs:
       - name: Publish docs
         if: >
           github.event_name == 'push' && github.ref == 'refs/heads/master' &&
-          matrix.target == 'linux' && matrix.branch == 'devel'
+          matrix.os == 'ubuntu-latest' && matrix.nim == 'devel'
         uses: crazy-max/ghaction-github-pages@v1
         with:
-          build_dir: frosty/docs
+          build_dir: ci/docs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
