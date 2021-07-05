@@ -82,7 +82,7 @@ template unimplemented(name: untyped) =
   template `write name`[T](s: var Serializer; o: T) {.used.} =
     raise Defect.newException "write" & astToStr(name) & " not implemented"
 
-  template `read name`[T](s: Serializer; o: var T) {.used.} =
+  template `read name`[T](s: var Serializer; o: var T) {.used.} =
     raise Defect.newException "read" & astToStr(name) & " not implemented"
 
 unimplemented Primitive
@@ -223,16 +223,16 @@ proc readRef(s, o: NimNode): NimNode =
 proc writeSequence(s: NimNode; o: NimNode): NimNode =
   genAst(s, o, writer = unbind"write"):
     s.writer len(o)          # write the size of the sequence
-    for item in items(o):   # iterate over the contents
+    for item in items(o):    # iterate over the contents
       s.writer item          #     write the item
 
 proc readSequence(s: NimNode; o: NimNode): NimNode =
   genAst(s, o, reader = unbind"read"):
-    var l = len(o)            # type inference
-    s.reader l                  # get the size of the sequence
-    setLen(o, l)              # resize the sequence
-    for item in mitems(o):    # iterate over mutable items
-      s.reader item             #     read the item
+    var l = len(o)           # type inference
+    s.reader l               # get the size of the sequence
+    setLen(o, l)             # resize the sequence
+    for item in mitems(o):   # iterate over mutable items
+      s.reader item          #     read the item
 
 #
 # this hack lets nim "cache" the logic for handling a reference as a
