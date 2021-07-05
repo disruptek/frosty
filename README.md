@@ -9,6 +9,14 @@
 
 Serialize native Nim types to strings, streams, or sockets.
 
+## Support
+
+- references
+- distincts
+- cycles
+- inheritance
+- variants
+
 ## Usage
 
 There are two operations: `freeze` and `thaw`.
@@ -47,19 +55,11 @@ var brrr = freeze("my data")
 assert thaw[string](brrr) == "my data"
 ```
 
-## Performance
-
-Frosty _can_ handle cyclic data structures.
-
 ### Benchmark vs. Flatty
 
-[The source to the following benchmark is found in the tests directory.](https://github.com/disruptek/frosty/blob/master/tests/bench.nim)
-
-The benchmark compares frosty to https://github.com/treeform/flatty for a few
-static datatypes -- flatty does not work with cast objects yet.
-
-![benchmarks](docs/bench.svg "benchmarks")
-
+I cannot get Flatty to run without periodic crashing; if you can fix the
+benchmark, you should find that Flatty is faster in some straightforward
+cases due to its direct memory copies and avoidance of streams.
 
 ## Installation
 
