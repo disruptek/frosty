@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           cd ci
-          nimble --accept develop
+          nimble --accept install
           nimble test
 
       - name: Build docs
