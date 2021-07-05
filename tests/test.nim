@@ -48,6 +48,10 @@ type
     a: int
   X = ref object of W
     b: int
+  Y = object of RootObj
+    a: int
+  Z = object of Y
+    b: int
   S = distinct string
   G = enum
     Even
@@ -75,8 +79,10 @@ type
     p: Option[F]
     s: S
     t, u: int
-    #w: W
-    #x: X
+    w: W
+    x: X
+    y: Y
+    z: Z
 
   VType = object
     ignore: bool
@@ -104,7 +110,6 @@ proc `==`(a, b: W | X): bool =
   else:
     false
 
-#when false:
 suite "frosty basics":
   ## primitive
   roundTrip 46
@@ -124,10 +129,12 @@ suite "frosty basics":
   roundTrip S"snakes"
   ## object
   roundTrip F(x: 4, y: 5.3)
-  #suite "frosty basics":
-  ## inheritance
+  ## ref inheritance
   roundTrip W(a: 23)
-  #roundTrip X(a: 48, b: 59)
+  roundTrip X(a: 48, b: 59)
+  ## value inheritance
+  roundTrip Y(a: 23)
+  roundTrip Z(a: 23, b: 59)
 
 const
   fn {.strdefine.} = "test-data.frosty"
@@ -210,11 +217,15 @@ proc hash(t: VType): Hash =
 proc hash(s: S): Hash {.borrow.}
 
 proc hash(w: W): Hash =
+  if w.isNil:
+    raise
   var h: Hash = 0
   h = h !& hash(w.a)
   result = !$h
 
 proc hash(x: X): Hash =
+  if x.isNil:
+    raise
   var h: Hash = 0
   h = h !& hash(W x)
   h = h !& hash(x.b)
@@ -247,6 +258,10 @@ proc hash(m: MyType): Hash =
     h = h !& hash(m.w)
   when compiles(m.x):
     h = h !& hash(m.x)
+  when compiles(m.y):
+    h = h !& hash(m.y)
+  when compiles(m.z):
+    h = h !& hash(m.z)
   result = !$h
 
 proc hash(m: seq[MyType]): Hash {.used.} =
@@ -288,8 +303,10 @@ proc makeChunks(n: int): seq[MyType] =
                       p: F(x: 44, y: 33.0).some,
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22), s: S("string " & spaces(n)),
-                      # inheritance
-                      #w: W(a: 23), x: X(a: 48, b: 59),
+                      # ref inheritance
+                      w: W(a: 23), x: X(a: 48, b: 59),
+                      # value inheritance
+                      y: Y(a: 23), z: Z(a: 48, b: 59),
                       # variant objects
                       h: (VType(ignore: true, kind: Even, even: 11),
                           VType(kind: Odd, also: 3),
@@ -306,31 +323,33 @@ suite "stress test":
   let vals = makeChunks(count)
   var q: typeof(vals)
 
-  for mode in [fmWrite, fmRead]:
-    var fh = openFileStream(fn, mode)
-    try:
-      case mode
-      of fmWrite:
-        suite "writes":
-          block:
-            ## writing values to stream
-            fh.freeze vals
-        echo "file size in meg: ", fileSize(fn)
-      of fmRead:
-        suite "reads":
-          block:
-            ## reading values from stream
-            fh.thaw q
-          block:
-            ## verify that read data matches
-            check len(q) == len(vals)
-            for i in vals.low .. vals.high:
-              if hash(q[i]) != hash(vals[i]):
-                checkpoint "index: ", i
-                checkpoint " vals: ", vals[i]
-                checkpoint "    q: ", q[i]
-                fail"audit fail"
-      else:
-        discard
-    finally:
-      close fh
+  block:
+    ## read/write a lot of data
+    for mode in [fmWrite, fmRead]:
+      var fh = openFileStream(fn, mode)
+      try:
+        case mode
+        of fmWrite:
+          suite "writes":
+            block:
+              ## writing values to stream
+              fh.freeze vals
+          echo "file size in meg: ", fileSize(fn)
+        of fmRead:
+          suite "reads":
+            block:
+              ## reading values from stream
+              fh.thaw q
+            block:
+              ## verify that read data matches
+              check len(q) == len(vals)
+              for i in vals.low .. vals.high:
+                if hash(q[i]) != hash(vals[i]):
+                  checkpoint "index: ", i
+                  checkpoint " vals: ", vals[i]
+                  checkpoint "    q: ", q[i]
+                  fail"audit fail"
+        else:
+          discard
+      finally:
+        close fh

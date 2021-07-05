@@ -13,15 +13,26 @@ type
   ThawError* = ValueError    ##
   ## An error raised during `thaw`.
 
+  Op = enum
+    Read  = "read"
+    Write = "write"
+
+when false:
+  proc operation(n: NimNode): Op =
+    case repr(n)
+    of "write": result = Write
+    of "read" : result = Read
+    else: error"unrecognized operation"
+
 proc initSerializer*[S](s: var Serializer[S]; source: S) {.raises: [].} =
   s.stream = source
 
-proc write*[T](s: var Serializer; o: ref T)
-proc read*[T](s: var Serializer; o: var ref T)
-proc forObject*(s: NimNode; o: NimNode; call: NimNode): NimNode
-proc forTuple*(s: NimNode; o: NimNode; call: NimNode): NimNode
-proc writeSequence*(s: NimNode; o: NimNode): NimNode
-proc readSequence*(s: NimNode; o: NimNode): NimNode
+proc write[T](s: var Serializer; o: ref T)
+proc read[T](s: var Serializer; o: var ref T)
+proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode
+proc forTuple(s: NimNode; o: NimNode; call: NimNode): NimNode
+proc writeSequence(s: NimNode; o: NimNode): NimNode
+proc readSequence(s: NimNode; o: NimNode): NimNode
 proc writeRef(s, o: NimNode): NimNode
 proc readRef(s, o: NimNode): NimNode
 
@@ -77,6 +88,7 @@ template sq*(a: NimNode; b: SomeInteger) =
 
 {.experimental: "dynamicBindSym".}
 template unbind(s: string): NimNode = bindSym(s, rule = brForceOpen)
+template unbind(op: Op): NimNode = unbind($op)
 
 template unimplemented(name: untyped) =
   template `write name`[T](s: var Serializer; o: T) {.used.} =
@@ -144,36 +156,41 @@ proc forTuple(s: NimNode; o: NimNode; call: NimNode): NimNode =
   result = tipe.eachField(s, o):
     call
 
-proc forObject(s: NimNode; o: NimNode; call: NimNode): NimNode =
+proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode =
   result = newStmtList()
-  let tipe = getTypeImpl o
-
-  # first see about writing the parent object's fields
-  let parent = tipe[1]
-  case parent.kind
+  case tipe.kind
   of nnkEmpty:
     discard
-  elif parent.kind == nnkOfInherit and parent.last.kind == nnkSym:
+  of nnkOfInherit:
+    # we need to consume the parent object type's fields
     result.add:
-      newCall(call, s, newCall(parent.last, o))
+      forObject(s, o, getTypeImpl tipe.last, call)
+  of nnkRefTy:
+    # unwrap a ref type modifier
+    result.add:
+      forObject(s, o, getTypeImpl tipe.last, call)
+  of nnkObjectTy:
+    # first see about writing the parent object's fields
+    result.add:
+      forObject(s, o, tipe[1], call)
+
+    # now we can write the records in this object
+    let records = tipe[2]
+    case records.kind
+    of nnkEmpty:
+      discard
+    of nnkRecList:
+      result.add:
+        records.eachField(s, o):
+          call
+    else:
+      raise ValueError.newException:
+        "unrecognized object type ast\n" & treeRepr(tipe)
   else:
     raise ValueError.newException:
       "unrecognized object type ast\n" & treeRepr(tipe)
 
-  # now we can write the records in this object
-  let records = tipe[2]
-  case records.kind
-  of nnkEmpty:
-    discard
-  of nnkRecList:
-    result.add:
-      records.eachField(s, o):
-        call
-  else:
-    raise ValueError.newException:
-      "unrecognized object type ast\n" & treeRepr(tipe)
-
-proc performAn(op: string; s: NimNode; o: NimNode): NimNode =
+proc perform(op: Op; s: NimNode; o: NimNode): NimNode =
   let tipe = getTypeImpl o
   result =
     case tipe.kind
@@ -182,21 +199,20 @@ proc performAn(op: string; s: NimNode; o: NimNode): NimNode =
     of nnkDistinctTy:
       newCall(unbind op, s, newCall(tipe[0], o))
     of nnkObjectTy:
-      forObject(s, o, unbind op)
+      forObject(s, o, getTypeImpl o, unbind op)
     of nnkTupleTy, nnkTupleConstr:
       forTuple(s, o, unbind op)
     elif tipe.isType("string"):
-      newCall(unbind op & "String", s, o)
+      newCall(unbind $op & "String", s, o)
     elif tipe.isGenericOf("seq"):
       case op
-      of "read" : readSequence(s, o)
-      of "write": writeSequence(s, o)
-      else: raise Defect.newException "not a thing"
+      of Read : readSequence(s, o)
+      of Write: writeSequence(s, o)
     else:
-      newCall(unbind op & "Primitive", s, o)
+      newCall(unbind $op & "Primitive", s, o)
 
 proc writeRef(s, o: NimNode): NimNode =
-  genAst(s, o, writer = unbind"write"):
+  genAst(s, o, writer = unbind Write):
     let p = cast[int](o)    # cast the pointer
     s.writer p              # write the pointer
     if p != 0:
@@ -205,7 +221,7 @@ proc writeRef(s, o: NimNode): NimNode =
         s.writer o[]
 
 proc readRef(s, o: NimNode): NimNode =
-  genAst(s, o, reader = unbind"read"):
+  genAst(s, o, reader = unbind Read):
     var g: int
     s.reader g
     if g == 0:
@@ -221,18 +237,18 @@ proc readRef(s, o: NimNode): NimNode =
         o = cast[ref T](p)
 
 proc writeSequence(s: NimNode; o: NimNode): NimNode =
-  genAst(s, o, writer = unbind"write"):
+  genAst(s, o, writer = unbind Write):
     s.writer len(o)          # write the size of the sequence
     for item in items(o):    # iterate over the contents
       s.writer item          #     write the item
 
 proc readSequence(s: NimNode; o: NimNode): NimNode =
-  genAst(s, o, reader = unbind"read"):
+  genAst(s, o, reader = unbind Read):
     var l = len(o)           # type inference
     s.reader l               # get the size of the sequence
     setLen(o, l)             # resize the sequence
-    for item in mitems(o):   # iterate over mutable items
-      s.reader item          #     read the item
+    for index in 0..<l:      # iterate over mutable items
+      s.reader o[index]      #     read the item
 
 #
 # this hack lets nim "cache" the logic for handling a reference as a
@@ -242,7 +258,7 @@ proc readSequence(s: NimNode; o: NimNode): NimNode =
 macro writeRefImpl[T](s: var Serializer; o: ref T) = writeRef(s, o)
 proc write[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
 
-macro readRefImpl[T](s: var Serializer; o: var ref T) = readRef(s, o)
+macro readRefImpl[T](s: var Serializer; o: ref T) = readRef(s, o)
 proc read[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 
 #
@@ -250,10 +266,10 @@ proc read[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 #
 
 macro write*(s: var Serializer; o: typed): untyped =
-  performAn("write", s, o)
+  perform(Write, s, o)
 
 macro read*(s: var Serializer; o: var typed) =
-  performAn("read", s, o)
+  perform(Read, s, o)
 
 include frosty/streams
 include frosty/net
