@@ -27,8 +27,9 @@ template testThaw(body: untyped; into: typed): untyped =
   let ss = newStringStream(body)
   try:
     thaw(ss, into)
+    let s = repr(into)
     let r = thaw[typeof(into)](body)
-    check r == into, "api insane"
+    check r == into, "api insane: " & s & " vs " & repr(r)
   finally:
     close ss
 
@@ -41,30 +42,12 @@ template roundTrip(value: typed): untyped =
   check bar == value
   check bar != default typeof(bar)
 
-suite "frosty basics":
-  ## write a primitive and read it back
-  roundTrip 46
-  ## write an enum and read it back
-  type E = enum One, Two, Three
-  roundTrip Two
-  ## write a set and read it back
-  roundTrip {Two, Three}
-  ## write a string and read it back
-  roundTrip NimVersion
-  ## write a sequence and read it back
-  roundTrip @["goats", "pigs"]
-  ## write a named tuple and read it back
-  roundTrip (food: "pigs", quantity: 43)
-  ## write a tuple and read it back
-  roundTrip ("pigs", 43, 22.0, Three)
-
-const
-  fn {.strdefine.} = "test-data.frosty"
-
-let
-  count = when defined(release): 1000 else: 2
-
 type
+  E = enum One, Two, Three
+  W = ref object of RootObj
+    a: int
+  X = ref object of W
+    b: int
   S = distinct string
   G = enum
     Even
@@ -72,6 +55,7 @@ type
   F = object
     x: int
     y: float
+
   MyType = ref object
     a: int
     b: float
@@ -91,6 +75,8 @@ type
     p: Option[F]
     s: S
     t, u: int
+    #w: W
+    #x: X
 
   VType = object
     ignore: bool
@@ -106,6 +92,48 @@ type
         omg, wtf, bbq: float
       else:
         `!!!11! whee`: string
+
+proc `==`(a, b: S): bool {.borrow.}
+
+proc `==`(a, b: W | X): bool =
+  if a.isNil == b.isNil:
+    if a.isNil:
+      true
+    else:
+      a[] == b[]
+  else:
+    false
+
+#when false:
+suite "frosty basics":
+  ## primitive
+  roundTrip 46
+  ## enum
+  roundTrip Two
+  ## set
+  roundTrip {Two, Three}
+  ## string
+  roundTrip NimVersion
+  ## sequence
+  roundTrip @["goats", "pigs"]
+  ## named tuple
+  roundTrip (food: "pigs", quantity: 43)
+  ## naked tuple
+  roundTrip ("pigs", 43, 22.0, Three)
+  ## distinct
+  roundTrip S"snakes"
+  ## object
+  roundTrip F(x: 4, y: 5.3)
+  #suite "frosty basics":
+  ## inheritance
+  roundTrip W(a: 23)
+  #roundTrip X(a: 48, b: 59)
+
+const
+  fn {.strdefine.} = "test-data.frosty"
+
+let
+  count = when defined(release): 1000 else: 2
 
 proc fileSize(path: string): float =
   when not defined(Windows) or not defined(gcArc):
@@ -181,6 +209,17 @@ proc hash(t: VType): Hash =
 
 proc hash(s: S): Hash {.borrow.}
 
+proc hash(w: W): Hash =
+  var h: Hash = 0
+  h = h !& hash(w.a)
+  result = !$h
+
+proc hash(x: X): Hash =
+  var h: Hash = 0
+  h = h !& hash(W x)
+  h = h !& hash(x.b)
+  result = !$h
+
 proc hash(m: MyType): Hash =
   var h: Hash = 0
   h = h !& hash(m.a)
@@ -204,6 +243,10 @@ proc hash(m: MyType): Hash =
   when compiles(m.n):
     h = h !& hash(m.n)
   h = h !& hash(m.o)
+  when compiles(m.w):
+    h = h !& hash(m.w)
+  when compiles(m.x):
+    h = h !& hash(m.x)
   result = !$h
 
 proc hash(m: seq[MyType]): Hash {.used.} =
@@ -245,6 +288,9 @@ proc makeChunks(n: int): seq[MyType] =
                       p: F(x: 44, y: 33.0).some,
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22), s: S("string " & spaces(n)),
+                      # inheritance
+                      #w: W(a: 23), x: X(a: 48, b: 59),
+                      # variant objects
                       h: (VType(ignore: true, kind: Even, even: 11),
                           VType(kind: Odd, also: 3),
                           VType(kind: Odd, also: 4, wtf: 5.4, bbq: 6.6),
@@ -256,34 +302,35 @@ proc makeChunks(n: int): seq[MyType] =
       result[^1].d = result[^2]
     dec n
 
-let vals = makeChunks(count)
-var q: typeof(vals)
+suite "stress test":
+  let vals = makeChunks(count)
+  var q: typeof(vals)
 
-for mode in [fmWrite, fmRead]:
-  var fh = openFileStream(fn, mode)
-  try:
-    case mode
-    of fmWrite:
-      suite "writes":
-        block:
-          ## writing values to stream
-          fh.freeze vals
-      echo "file size in meg: ", fileSize(fn)
-    of fmRead:
-      suite "reads":
-        block:
-          ## reading values from stream
-          fh.thaw q
-        block:
-          ## verify that read data matches
-          check len(q) == len(vals)
-          for i in vals.low .. vals.high:
-            if hash(q[i]) != hash(vals[i]):
-              checkpoint "index: ", i
-              checkpoint " vals: ", vals[i]
-              checkpoint "    q: ", q[i]
-              fail"audit fail"
-    else:
-      discard
-  finally:
-    close fh
+  for mode in [fmWrite, fmRead]:
+    var fh = openFileStream(fn, mode)
+    try:
+      case mode
+      of fmWrite:
+        suite "writes":
+          block:
+            ## writing values to stream
+            fh.freeze vals
+        echo "file size in meg: ", fileSize(fn)
+      of fmRead:
+        suite "reads":
+          block:
+            ## reading values from stream
+            fh.thaw q
+          block:
+            ## verify that read data matches
+            check len(q) == len(vals)
+            for i in vals.low .. vals.high:
+              if hash(q[i]) != hash(vals[i]):
+                checkpoint "index: ", i
+                checkpoint " vals: ", vals[i]
+                checkpoint "    q: ", q[i]
+                fail"audit fail"
+      else:
+        discard
+    finally:
+      close fh

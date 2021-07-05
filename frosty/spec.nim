@@ -22,6 +22,19 @@ proc forObject*(s: NimNode; o: NimNode; call: NimNode): NimNode
 proc forTuple*(s: NimNode; o: NimNode; call: NimNode): NimNode
 proc writeSequence*(s: NimNode; o: NimNode): NimNode
 proc readSequence*(s: NimNode; o: NimNode): NimNode
+proc writeRef(s, o: NimNode): NimNode
+proc readRef(s, o: NimNode): NimNode
+
+proc errorAst(s: string; info: NimNode = nil): NimNode =
+  result =
+    nnkPragma.newTree:
+      ident"error".newColonExpr: newLit s
+  if not info.isNil:
+    copyLineInfo result[0], info
+
+proc errorAst(n: NimNode; s: string): NimNode =
+  let s = s & ":\n" & treeRepr n
+  result = errorAst(s, info = n)
 
 proc isType(n: NimNode): bool =
   n.kind == nnkSym and n.symKind == nskType
@@ -126,122 +139,121 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
   if result.len == 0:
     result = nnkDiscardStmt.newTree newEmptyNode()
 
-proc forObject*(s: NimNode; o: NimNode; call: NimNode): NimNode =
-  let tipe = getTypeImpl o
-  let records = tipe[^1]
-  case records.kind
-  of nnkRecList:
-    result = records.eachField(s, o):
-      call
-  else:
-    raise ValueError.newException "unrecognized ast"
-
-proc performWrite(s: NimNode; o: NimNode): NimNode =
-  let tipe = getTypeImpl o
-  result =
-    case tipe.kind
-    of nnkDistinctTy:
-      # naive unwrap of distinct types
-      doc "frosty unwraps a distinct":
-        newCall(unbind"write", s, newCall(tipe[0], o))
-    of nnkObjectTy:
-      # here we need to consider variant objects
-      doc "frosty writes an object":
-        forObject(s, o, unbind"write")
-    of nnkTupleTy, nnkTupleConstr:
-      # this is a naive write of ordered fields
-      doc "frosty writes a tuple":
-        forTuple(s, o, unbind"write")
-    elif tipe.isType("string"):
-      # we want to handle strings specially
-      doc "frosty writes a string":
-        newCall(unbind"writeString", s, o)
-    elif tipe.isGenericOf("seq"):
-      # sequences are similarly special
-      doc "frosty writes a sequence":
-        writeSequence(s, o)
-    else:
-      # a naive write of any other arbitrary type
-      doc "frosty writes a primitive":
-        newCall(unbind"writePrimitive", s, o)
-
-macro write*(s: var Serializer; o: typed): untyped =
-  result = performWrite(s, o)
-
-proc performRead(s: NimNode; o: NimNode): NimNode =
-  let tipe = getTypeImpl o
-  result =
-    case tipe.kind
-    of nnkDistinctTy:
-      # naive unwrap of distinct types
-      doc "frosty unwraps a distinct":
-        newCall(unbind"read", s, newCall(tipe[0], o))
-    of nnkObjectTy:
-      # here we need to consider variant objects
-      doc "frosty reads an object":
-        forObject(s, o, unbind"read")
-    of nnkTupleTy, nnkTupleConstr:
-      # this is a naive read of ordered fields
-      doc "frosty reads a tuple":
-        forTuple(s, o, unbind"read")
-    elif tipe.isType("string"):
-      # we want to handle strings specially
-      doc "frosty reads a string":
-        newCall(unbind"readString", s, o)
-    elif tipe.isGenericOf("seq"):
-      doc "frosty reads a sequence":
-        readSequence(s, o)
-    else:
-      # a naive read of any other arbitrary type
-      doc "frosty reads a primitive":
-        newCall(unbind"readPrimitive", s, o)
-
-macro read*(s: var Serializer; o: var typed) =
-  result = performRead(s, o)
-
-proc write*[T](s: var Serializer; o: ref T) =
-  let p = cast[int](o)    # cast the pointer
-  s.write p               # write the pointer
-  if p != 0:
-    if not hasKeyOrPut(s.ptrs, p, cast[pointer](o)):
-      # write the value for this novel address
-      s.write(o[])
-
-proc read*[T](s: var Serializer; o: var ref T) =
-  const
-    unlikely = cast[pointer](-1)
-  var g: int
-  s.read g
-  if g == 0:
-    o = nil
-  else:
-    # a lookup is waaaay cheaper than an alloc
-    let p = getOrDefault(s.ptrs, g, unlikely)
-    if p == unlikely:
-      o = new (ref T)
-      s.ptrs[g] = cast[pointer](o)
-      s.read o[]
-    else:
-      o = cast[ref T](p)
-
-proc forTuple*(s: NimNode; o: NimNode; call: NimNode): NimNode =
+proc forTuple(s: NimNode; o: NimNode; call: NimNode): NimNode =
   let tipe = getTypeImpl o
   result = tipe.eachField(s, o):
     call
 
-proc writeSequence*(s: NimNode; o: NimNode): NimNode =
-  genAst(s, o):
-    s.write len(o)          # write the size of the sequence
-    for item in items(o):   # iterate over the contents
-      s.write item          #     write the item
+proc forObject(s: NimNode; o: NimNode; call: NimNode): NimNode =
+  result = newStmtList()
+  let tipe = getTypeImpl o
 
-proc readSequence*(s: NimNode; o: NimNode): NimNode =
-  genAst(s, o):
+  # first see about writing the parent object's fields
+  let parent = tipe[1]
+  case parent.kind
+  of nnkEmpty:
+    discard
+  elif parent.kind == nnkOfInherit and parent.last.kind == nnkSym:
+    result.add:
+      newCall(call, s, newCall(parent.last, o))
+  else:
+    raise ValueError.newException:
+      "unrecognized object type ast\n" & treeRepr(tipe)
+
+  # now we can write the records in this object
+  let records = tipe[2]
+  case records.kind
+  of nnkEmpty:
+    discard
+  of nnkRecList:
+    result.add:
+      records.eachField(s, o):
+        call
+  else:
+    raise ValueError.newException:
+      "unrecognized object type ast\n" & treeRepr(tipe)
+
+proc performAn(op: string; s: NimNode; o: NimNode): NimNode =
+  let tipe = getTypeImpl o
+  result =
+    case tipe.kind
+    of nnkRefTy:
+      tipe.errorAst "creepy binding"
+    of nnkDistinctTy:
+      newCall(unbind op, s, newCall(tipe[0], o))
+    of nnkObjectTy:
+      forObject(s, o, unbind op)
+    of nnkTupleTy, nnkTupleConstr:
+      forTuple(s, o, unbind op)
+    elif tipe.isType("string"):
+      newCall(unbind op & "String", s, o)
+    elif tipe.isGenericOf("seq"):
+      case op
+      of "read" : readSequence(s, o)
+      of "write": writeSequence(s, o)
+      else: raise Defect.newException "not a thing"
+    else:
+      newCall(unbind op & "Primitive", s, o)
+
+proc writeRef(s, o: NimNode): NimNode =
+  genAst(s, o, writer = unbind"write"):
+    let p = cast[int](o)    # cast the pointer
+    s.writer p              # write the pointer
+    if p != 0:
+      if not hasKeyOrPut(s.ptrs, p, cast[pointer](o)):
+        # write the value for this novel address
+        s.writer o[]
+
+proc readRef(s, o: NimNode): NimNode =
+  genAst(s, o, reader = unbind"read"):
+    var g: int
+    s.reader g
+    if g == 0:
+      o = nil
+    else:
+      # a lookup is waaaay cheaper than an alloc
+      let p = getOrDefault(s.ptrs, g, cast[pointer](-1))
+      if p == cast[pointer](-1):
+        o = new (ref T)
+        s.ptrs[g] = cast[pointer](o)
+        s.reader o[]
+      else:
+        o = cast[ref T](p)
+
+proc writeSequence(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, writer = unbind"write"):
+    s.writer len(o)          # write the size of the sequence
+    for item in items(o):   # iterate over the contents
+      s.writer item          #     write the item
+
+proc readSequence(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, reader = unbind"read"):
     var l = len(o)            # type inference
-    s.read l                  # get the size of the sequence
+    s.reader l                  # get the size of the sequence
     setLen(o, l)              # resize the sequence
     for item in mitems(o):    # iterate over mutable items
-      s.read item             #     read the item
+      s.reader item             #     read the item
+
+#
+# this hack lets nim "cache" the logic for handling a reference as a
+# generic as opposed to just recursively following cyclic references
+#
+
+macro writeRefImpl[T](s: var Serializer; o: ref T) = writeRef(s, o)
+proc write[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
+
+macro readRefImpl[T](s: var Serializer; o: var ref T) = readRef(s, o)
+proc read[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
+
+#
+# put 'em down here so we don't accidentally bind somewhere
+#
+
+macro write*(s: var Serializer; o: typed): untyped =
+  performAn("write", s, o)
+
+macro read*(s: var Serializer; o: var typed) =
+  performAn("read", s, o)
 
 include frosty/streams
 include frosty/net
