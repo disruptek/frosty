@@ -5,7 +5,6 @@ import std/tables
 type
   Serializer*[T] = object
     stream*: T
-    stack*: seq[pointer]
     ptrs*: Table[int, pointer]
 
   FreezeError* = ValueError  ##
