@@ -1,41 +1,22 @@
 import std/streams
 
-template asString(s: typed): untyped =
-  when s is string:
-    s
-  else:
-    string(s)
+import frosty
+export frosty
 
-proc writeString(s: var Serializer[Stream]; o: string)
-proc readString(s: var Serializer[Stream]; o: var string)
-proc readPrimitive[T](s: var Serializer[Stream]; o: var T)
-proc writePrimitive[T](s: var Serializer[Stream]; o: T)
+type
+  Streamy = Stream or StringStream
 
-proc writeString(s: var Serializer[Stream]; o: string) =
-  ## write a string or string-like thing
-  write(s, o.len)                # put the str len
-  write(s.stream, asString o)    # put the str data
+proc serialize*(output: var Streamy; input: string; len: int) =
+  write(output, input)
 
-proc readString(s: var Serializer[Stream]; o: var string) =
-  ## read a string or string-like thing
-  var l = len(asString o)        # type inference
-  read(s, l)                     # read the string length
-  setLen(asString o, l)          # set the new length
-  if l > 0:
-    if readData(s.stream, o.cstring, l) != l:
-      raise ThawError.newException "short read!"
+proc deserialize*(input: var Streamy; output: var string; len: int) =
+  readStr(input, len, output)
 
-proc writePrimitive[T](s: var Serializer[Stream]; o: T) =
-  write(s.stream, o)
+proc serialize*[T](output: var Streamy; input: T) =
+  write(output, input)
 
-proc readPrimitive[T](s: var Serializer[Stream]; o: var T) =
-  read(s.stream, o)
-
-proc freeze*[T](stream: Stream; source: T) =
-  ## Write `source` into `stream`.
-  var s: Serializer[Stream]
-  initSerializer(s, stream)
-  write(s, source)
+proc deserialize*[T](input: var Streamy; output: var T) =
+  read(input, output)
 
 proc freeze*[T](result: var string; source: T) =
   ## Write `source` into `result`.
@@ -54,13 +35,13 @@ proc freeze*[T](result: var string; source: T) =
     # confirm that two objects match
     assert url == q
 
-  var ss = newStringStream result
+  var stream = newStringStream result
   try:
-    ss.freeze source
-    ss.setPosition 0
-    result = readAll ss
+    stream.freeze source
+    stream.setPosition 0
+    result = readAll stream
   finally:
-    close ss
+    close stream
 
 proc freeze*[T](source: T): string =
   ## Turn a `T` into a string.
@@ -76,12 +57,6 @@ proc freeze*[T](source: T): string =
     assert u == q
 
   result.freeze source
-
-proc thaw*[T](stream: Stream; result: var T) =
-  ## Read `result` from `stream`.
-  var s: Serializer[Stream]
-  initSerializer(s, stream)
-  read(s, result)
 
 proc thaw*[T](source: string; result: var T) =
   ## Read `result` from `source`.
@@ -101,12 +76,16 @@ proc thaw*[T](source: string; result: var T) =
     # confirm that the two sequences of data match
     assert l == q
 
-  var ss = newStringStream source
+  var stream = newStringStream source
   try:
-    ss.thaw result
+    thaw(stream, result)
   finally:
-    close ss
+    close stream
 
 proc thaw*[T](source: string): T =
   ## Turn a string into a `T`.
-  source.thaw result
+  var stream = newStringStream source
+  try:
+    thaw(stream, result)
+  finally:
+    close stream

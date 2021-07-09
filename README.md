@@ -21,45 +21,91 @@ Serialize native Nim types to strings, streams, or sockets.
 
 There are two operations: `freeze` and `thaw`.
 
-#### `freeze[T](output: Socket or Stream or var string; input: T)`
+Each takes as input a _target_ and the _data_ to serialize or deserialize.
+
+#### `freeze` serializes any data to the target
+
+This example uses the `frosty/streams` target supplied in this repository.
+
 ```nim
-import frosty
+import frosty/streams
+
+type
+  MyObject = object
+    x: int
+    y: string
 
 var
-  data = someArbitraryDataFactory()
+  data = MyObject(x: 4, y: "three")
   handle = openFileStream("somefile", fmWrite)
-# write serialized data into the file handle
+# write serialized data into the file stream
 freeze(handle, data)
 close handle
 ```
 
-#### `thaw[T](input: Socket or Stream or string; output: var T)`
+#### `thaw` deserializes any data from a target
+
+This example uses the `frosty/streams` target supplied in this repository.
+
 ```nim
-import frosty
+import frosty/streams
 
 var
-  data: SomeArbitraryType
+  data: MyObject
   handle = openFileStream("somefile", fmRead)
 # read deserialized data from the file handle
 thaw(handle, data)
+assert data == MyObject(x: 4, y: "three")
 close handle
 ```
 
-#### `freeze[T](input: T): string`
-#### `thaw[T](input: Socket or Stream or string): T`
+#### customize serialization for your types
+
+If you want to alter the serialization for a type, simply implement `serialize`
+and `deserialize` procedures for your type.
+
 ```nim
 import frosty
 
-# adhoc serialization and deserialization
-var brrr = freeze("my data")
-assert thaw[string](brrr) == "my data"
+proc serialize*[S](output: var S; input: MyObject) =
+  serialize(output, input.y)
+
+proc deserialize*[S](input: var S; output: var MyObject) =
+  var mine = MyObject(x: 1)
+  serialize(output, mine.y)
 ```
 
-### Benchmark vs. Flatty
+#### implement your own custom targets
 
-I cannot get Flatty to run without periodic crashing; if you can fix the
-benchmark, you should find that Flatty is faster in some straightforward
-cases due to its direct memory copies and avoidance of streams.
+This is the complete implementation for the `frosty/streams` target.
+
+```nim
+import frosty
+
+proc serialize*(output: var Streamy; input: string; len: int) =
+  write(output, input)
+
+proc deserialize*(input: var Streamy; output: var string; len: int) =
+  readStr(input, len, output)
+
+proc serialize*[T](output: var Streamy; input: T) =
+  write(output, input)
+
+proc deserialize*[T](input: var Streamy; output: var T) =
+  read(input, output)
+```
+
+#### adhoc serialization to/from strings
+
+The `frosty/streams` module also provides an even simpler `freeze` and `thaw`
+API that uses `StringStream`.
+
+```nim
+import frosty/streams
+
+var brrr = freeze MyObject(x: 2, y: "four")
+assert thaw[MyObject](brrr) == MyObject(x: 2, y: "four")
+```
 
 ## Installation
 

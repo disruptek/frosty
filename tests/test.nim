@@ -11,7 +11,7 @@ import std/json
 import std/options
 
 import balls
-import frosty #/streams as brrr
+import frosty/streams as brrr
 
 template testFreeze(body: untyped): untyped =
   var ss = newStringStream()
