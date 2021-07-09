@@ -46,7 +46,7 @@ template dot(a, b: NimNode): NimNode =
 template eq(a, b: NimNode): NimNode =
   nnkExprEqExpr.newNimNode(a).add(a).add(b)
 
-template eq(a: string; b: NimNode): NimNode =
+template eq(a: string; b: NimNode): NimNode {.used.} =
   eq(ident(a), b)
 
 template sq(a, b: NimNode): NimNode =

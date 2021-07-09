@@ -24,11 +24,13 @@ template testFreeze(body: untyped): untyped =
     close ss
 
 template testThaw(body: untyped; into: typed): untyped =
+  let r = thaw[typeof(into)](body)
   let ss = newStringStream(body)
   try:
     thaw(ss, into)
     let s = repr(into)
-    let r = thaw[typeof(into)](body)
+    check r == into, "api insane: " & s & " vs " & repr(r)
+    thaw(ss, into)
     check r == into, "api insane: " & s & " vs " & repr(r)
   finally:
     close ss
@@ -135,6 +137,8 @@ suite "frosty basics":
   ## value inheritance
   roundTrip Y(a: 23)
   roundTrip Z(a: 23, b: 59)
+  ## seq of set
+  roundTrip @[{One, Two}, {Two, Three}]
 
 const
   fn {.strdefine.} = "test-data.frosty"
