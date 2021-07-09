@@ -16,16 +16,6 @@ type
     Read  = "deserialize"
     Write = "serialize"
 
-when false:
-  proc operation(n: NimNode): Op =
-    case repr(n)
-    of "write": result = Write
-    of "read" : result = Read
-    else: error"unrecognized operation"
-
-proc initSerializer*[S](s: var Serializer[S]; source: S) {.raises: [].} =
-  s.stream = source
-
 proc serialize[T](s: var Serializer; o: ref T)
 proc deserialize[T](s: var Serializer; o: var ref T)
 proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode
@@ -39,17 +29,6 @@ proc readSequence(s: NimNode; o: NimNode): NimNode
 proc writeRef(s, o: NimNode): NimNode
 proc readRef(s, o: NimNode): NimNode
 
-proc errorAst(s: string; info: NimNode = nil): NimNode =
-  result =
-    nnkPragma.newTree:
-      ident"error".newColonExpr: newLit s
-  if not info.isNil:
-    copyLineInfo result[0], info
-
-proc errorAst(n: NimNode; s: string): NimNode =
-  let s = s & ":\n" & treeRepr n
-  result = errorAst(s, info = n)
-
 proc isType(n: NimNode): bool =
   n.kind == nnkSym and n.symKind == nskType
 
@@ -60,19 +39,6 @@ proc isGenericOf(n: NimNode; s: string): bool =
   if n.kind == nnkBracketExpr:
     if n.len > 0:
       return n[0].isType s
-
-proc doc(s: string): NimNode {.used.} =
-  newCommentStmtNode s
-
-proc doc(s: string; body: NimNode): NimNode {.used.} =
-  when defined(release):
-    body
-  else:
-    newStmtList [
-      doc("begin: " & s),
-      body,
-      doc("  end: " & s),
-    ]
 
 template dot*(a, b: NimNode): NimNode =
   newDotExpr(a, b)
@@ -97,17 +63,6 @@ template unbind(s: string): NimNode =
 template unbind(op: Op): NimNode =
   unbind $op
 
-when false:
-  template unimplemented(name: untyped) =
-    template `write name`[T](s: var Serializer; o: T) {.used.} =
-      raise Defect.newException "write" & astToStr(name) & " not implemented"
-
-    template `read name`[T](s: var Serializer; o: var T) {.used.} =
-      raise Defect.newException "read" & astToStr(name) & " not implemented"
-
-  unimplemented Primitive
-  unimplemented String
-
 proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
   result = newStmtList()
   for index, node in n.pairs:
@@ -115,23 +70,19 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
 
     of nnkRecList:
       result.add:
-        doc "record list":
-          node.eachField(s, o, call)
+        node.eachField(s, o, call)
 
     of nnkIdentDefs:
       result.add:
-        doc "for field " & node[0].strVal:
-          newCall(call, s, o.dot node[0])
+        newCall(call, s, o.dot node[0])
 
     of nnkRecCase:
       let kind = node[0][0]
       result.insert 0:
-        doc "for discriminator " & kind.strVal:
-          genAst(call, s, o, kind,
-                 temp = nskTemp.genSym"kind", tipe = node[0][1]):
-            var temp: tipe
-            call(s, temp)
-            o.kind = temp
+        genAst(call, s, o, kind, temp = nskTemp.genSym"kind", tipe = node[0][1]):
+          var temp: tipe
+          call(s, temp)
+          o.kind = temp
       let kase = nnkCaseStmt.newTree(o.dot kind)
       for branch in node[1 .. ^1]:                # skip discriminator
         let clone = copyNimNode branch
@@ -152,8 +103,7 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
 
     else:
       result.add:
-        doc "for index " & $index:
-          newCall(call, s, o.sq index)
+        newCall(call, s, o.sq index)
 
   # produce an empty discard versus an empty statement list
   if result.len == 0:
@@ -169,11 +119,8 @@ proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode =
   case tipe.kind
   of nnkEmpty:
     discard
-  of nnkOfInherit:
-    # we need to consume the parent object type's fields
-    result.add:
-      forObject(s, o, getTypeImpl tipe.last, call)
-  of nnkRefTy:
+  of nnkOfInherit, nnkRefTy:
+    # we need to consume the parent object type's fields, or
     # unwrap a ref type modifier
     result.add:
       forObject(s, o, getTypeImpl tipe.last, call)
@@ -202,8 +149,6 @@ proc perform(op: Op; s: NimNode; o: NimNode): NimNode =
   let tipe = getTypeImpl o
   result =
     case tipe.kind
-    of nnkRefTy:
-      tipe.errorAst "creepy binding"
     of nnkDistinctTy:
       newCall(unbind op, s, newCall(tipe[0], o))
     of nnkObjectTy:
@@ -222,7 +167,6 @@ proc perform(op: Op; s: NimNode; o: NimNode): NimNode =
       case op
       of Read : readPrimitive(s, o)
       of Write: writePrimitive(s, o)
-      #newCall(unbind $op, s, o)
 
 proc writeRef(s, o: NimNode): NimNode =
   genAst(s, o, writer = unbind Write):
@@ -306,10 +250,10 @@ proc deserialize[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 # put 'em down here so we don't accidentally bind somewhere
 #
 
-macro serialize*(s: var Serializer; o: typed): untyped =
+macro serialize(s: var Serializer; o: typed): untyped =
   perform(Write, s, o)
 
-macro deserialize*(s: var Serializer; o: var typed) =
+macro deserialize(s: var Serializer; o: var typed) =
   perform(Read, s, o)
 
 proc freeze*[S, T](output: S; input: T) =
@@ -323,8 +267,3 @@ proc thaw*[S, T](input: S; output: var T) =
   var s: Serializer[S]
   s.serial = input
   deserialize(s, output)
-
-#include frosty/streams
-
-#when not defined(js):
-#  include frosty/net
