@@ -4,7 +4,7 @@ import std/tables
 
 type
   Serializer*[T] = object
-    stream*: T
+    serial*: T
     ptrs*: Table[int, pointer]
 
   FreezeError* = ValueError  ##
@@ -13,8 +13,8 @@ type
   ## An error raised during `thaw`.
 
   Op = enum
-    Read  = "read"
-    Write = "write"
+    Read  = "deserialize"
+    Write = "serialize"
 
 when false:
   proc operation(n: NimNode): Op =
@@ -26,10 +26,14 @@ when false:
 proc initSerializer*[S](s: var Serializer[S]; source: S) {.raises: [].} =
   s.stream = source
 
-proc write[T](s: var Serializer; o: ref T)
-proc read[T](s: var Serializer; o: var ref T)
+proc serialize[T](s: var Serializer; o: ref T)
+proc deserialize[T](s: var Serializer; o: var ref T)
 proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode
 proc forTuple(s: NimNode; o: NimNode; call: NimNode): NimNode
+proc writePrimitive(s: NimNode; o: NimNode): NimNode
+proc readPrimitive(s: NimNode; o: NimNode): NimNode
+proc writeString(s: NimNode; o: NimNode): NimNode
+proc readString(s: NimNode; o: NimNode): NimNode
 proc writeSequence(s: NimNode; o: NimNode): NimNode
 proc readSequence(s: NimNode; o: NimNode): NimNode
 proc writeRef(s, o: NimNode): NimNode
@@ -86,18 +90,23 @@ template sq*(a: NimNode; b: SomeInteger) =
   sq(a, newLit b)
 
 {.experimental: "dynamicBindSym".}
-template unbind(s: string): NimNode = bindSym(s, rule = brForceOpen)
-template unbind(op: Op): NimNode = unbind($op)
+template unbound(s: string): NimNode =
+  bindSym(s, rule = brForceOpen)
+template unbind(s: string): NimNode =
+  unbound s
+template unbind(op: Op): NimNode =
+  unbind $op
 
-template unimplemented(name: untyped) =
-  template `write name`[T](s: var Serializer; o: T) {.used.} =
-    raise Defect.newException "write" & astToStr(name) & " not implemented"
+when false:
+  template unimplemented(name: untyped) =
+    template `write name`[T](s: var Serializer; o: T) {.used.} =
+      raise Defect.newException "write" & astToStr(name) & " not implemented"
 
-  template `read name`[T](s: var Serializer; o: var T) {.used.} =
-    raise Defect.newException "read" & astToStr(name) & " not implemented"
+    template `read name`[T](s: var Serializer; o: var T) {.used.} =
+      raise Defect.newException "read" & astToStr(name) & " not implemented"
 
-unimplemented Primitive
-unimplemented String
+  unimplemented Primitive
+  unimplemented String
 
 proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
   result = newStmtList()
@@ -202,13 +211,18 @@ proc perform(op: Op; s: NimNode; o: NimNode): NimNode =
     of nnkTupleTy, nnkTupleConstr:
       forTuple(s, o, unbind op)
     elif tipe.isType("string"):
-      newCall(unbind $op & "String", s, o)
+      case op
+      of Read : readString(s, o)
+      of Write: writeString(s, o)
     elif tipe.isGenericOf("seq"):
       case op
       of Read : readSequence(s, o)
       of Write: writeSequence(s, o)
     else:
-      newCall(unbind $op & "Primitive", s, o)
+      case op
+      of Read : readPrimitive(s, o)
+      of Write: writePrimitive(s, o)
+      #newCall(unbind $op, s, o)
 
 proc writeRef(s, o: NimNode): NimNode =
   genAst(s, o, writer = unbind Write):
@@ -235,6 +249,34 @@ proc readRef(s, o: NimNode): NimNode =
       else:
         o = cast[ref T](p)
 
+template asString(s: typed): untyped =
+  when s is string:
+    s                 # a string
+  else:
+    string(s)         # a distinct string
+
+proc writeString(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, asString, writer = unbind Write):
+    let l = len(o)
+    s.writer l                         # write the size of the string
+    writer(s.serial, asString(o), l)   # write the string
+
+proc readString(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, asString, reader = unbind Read):
+    var l = len(asString o)            # type inference
+    s.reader l                         # read the string length
+    setLen(asString o, l)              # set the new length
+    if l > 0:
+      reader(s.serial, asString o, l)  # read the string
+
+proc writePrimitive(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, writer = unbind Write):
+    writer(s.serial, o)      # write the value
+
+proc readPrimitive(s: NimNode; o: NimNode): NimNode =
+  genAst(s, o, reader = unbind Read):
+    reader(s.serial, o)      # read the value
+
 proc writeSequence(s: NimNode; o: NimNode): NimNode =
   genAst(s, o, writer = unbind Write):
     s.writer len(o)          # write the size of the sequence
@@ -255,20 +297,34 @@ proc readSequence(s: NimNode; o: NimNode): NimNode =
 #
 
 macro writeRefImpl[T](s: var Serializer; o: ref T) = writeRef(s, o)
-proc write[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
+proc serialize[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
 
 macro readRefImpl[T](s: var Serializer; o: ref T) = readRef(s, o)
-proc read[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
+proc deserialize[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 
 #
 # put 'em down here so we don't accidentally bind somewhere
 #
 
-macro write*(s: var Serializer; o: typed): untyped =
+macro serialize*(s: var Serializer; o: typed): untyped =
   perform(Write, s, o)
 
-macro read*(s: var Serializer; o: var typed) =
+macro deserialize*(s: var Serializer; o: var typed) =
   perform(Read, s, o)
 
-include frosty/streams
-include frosty/net
+proc freeze*[S, T](output: S; input: T) =
+  ## Write `input` into `output`.
+  var s: Serializer[S]
+  s.serial = output
+  serialize(s, input)
+
+proc thaw*[S, T](input: S; output: var T) =
+  ## Read `output` from `input`.
+  var s: Serializer[S]
+  s.serial = input
+  deserialize(s, output)
+
+#include frosty/streams
+
+#when not defined(js):
+#  include frosty/net
