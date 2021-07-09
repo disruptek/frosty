@@ -40,19 +40,19 @@ proc isGenericOf(n: NimNode; s: string): bool =
     if n.len > 0:
       return n[0].isType s
 
-template dot*(a, b: NimNode): NimNode =
+template dot(a, b: NimNode): NimNode =
   newDotExpr(a, b)
 
-template eq*(a, b: NimNode): NimNode =
+template eq(a, b: NimNode): NimNode =
   nnkExprEqExpr.newNimNode(a).add(a).add(b)
 
-template eq*(a: string; b: NimNode): NimNode =
+template eq(a: string; b: NimNode): NimNode =
   eq(ident(a), b)
 
-template sq*(a, b: NimNode): NimNode =
+template sq(a, b: NimNode): NimNode =
   nnkBracketExpr.newNimNode(a).add(a).add(b)
 
-template sq*(a: NimNode; b: SomeInteger) =
+template sq(a: NimNode; b: SomeInteger) =
   sq(a, newLit b)
 
 {.experimental: "dynamicBindSym".}
