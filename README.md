@@ -16,6 +16,9 @@ Serialize native Nim types to strings, streams, sockets, or anything else.
 - cycles
 - inheritance
 - variants
+- `gc:arc`
+- `gc:orc`
+- ~`gc:refc`~
 
 ## Usage
 
@@ -53,7 +56,7 @@ import frosty/streams
 var
   data: MyObject
   handle = openFileStream("somefile", fmRead)
-# read deserialized data from the file handle
+# read deserialized data from the file stream
 thaw(handle, data)
 assert data == MyObject(x: 4, y: "three")
 close handle
@@ -65,17 +68,20 @@ If you want to alter the serialization for a type, simply implement `serialize`
 and `deserialize` procedures for your type.
 
 ```nim
-import frosty
+proc serialize*[S](output: var S; login: LoginCredentials) =
+  ## avoid accidentally serializing passwords
+  serialize(output, login.username)
 
-proc serialize*[S](output: var S; input: MyObject) =
-  serialize(output, input.y)
-
-proc deserialize*[S](input: var S; output: var MyObject) =
-  var mine = MyObject(x: 1)
-  deserialize(input, mine.y)
+proc deserialize*[S](input: var S; login: var LoginCredentials) =
+  login.password = "{scrubbed}"
+  deserialize(input, login.username)
 ```
 
 ### Easily Implement Your Own Custom Targets
+
+You merely provide two forms of reading and writing for your target -- simple
+types such as ordinals or floats, and strings, for which you are additionally
+provided a length argument for your convenience.
 
 This is an implementation of a `Stream` target.
 
@@ -83,11 +89,11 @@ This is an implementation of a `Stream` target.
 import frosty
 export frosty
 
-proc serialize*(output: var Stream; input: string; len: int) =
+proc serialize*(output: var Stream; input: string; length: int) =
   write(output, input)
 
-proc deserialize*(input: var Stream; output: var string; len: int) =
-  readStr(input, len, output)
+proc deserialize*(input: var Stream; output: var string; length: int) =
+  readStr(input, length, output)
 
 proc serialize*[T](output: var Stream; input: T) =
   write(output, input)
@@ -99,7 +105,7 @@ proc deserialize*[T](input: var Stream; output: var T) =
 ### Adhoc Serialization To/From Strings
 
 The `frosty/streams` module also provides an even simpler `freeze` and `thaw`
-API that uses `StringStream`.
+API that uses `StringStream` to provide basic string-based input and output.
 
 ```nim
 import frosty/streams

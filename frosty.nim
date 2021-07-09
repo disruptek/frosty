@@ -3,9 +3,9 @@ import std/macros
 import std/tables
 
 type
-  Serializer*[T] = object
-    serial*: T
-    ptrs*: Table[int, pointer]
+  Serializer[T] = object
+    serial: T
+    ptrs: Table[int, pointer]
 
   FreezeError* = ValueError  ##
   ## An error raised during `freeze`.
