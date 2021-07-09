@@ -23,7 +23,7 @@ There are two operations: `freeze` and `thaw`.
 
 Each takes as input a _target_ and the _data_ to serialize or deserialize.
 
-### `freeze` serializes any data to the target
+### `freeze` Serializes Any Data to the Target
 
 This example uses the `frosty/streams` target supplied in this repository.
 
@@ -43,7 +43,7 @@ freeze(handle, data)
 close handle
 ```
 
-### `thaw` deserializes any data from a target
+### `thaw` Deserializes Any Data From the Target
 
 This example uses the `frosty/streams` target supplied in this repository.
 
@@ -59,7 +59,7 @@ assert data == MyObject(x: 4, y: "three")
 close handle
 ```
 
-### customize serialization for your types
+### Easily Customize Serialization for Types
 
 If you want to alter the serialization for a type, simply implement `serialize`
 and `deserialize` procedures for your type.
@@ -75,7 +75,7 @@ proc deserialize*[S](input: var S; output: var MyObject) =
   serialize(output, mine.y)
 ```
 
-### implement your own custom targets
+### Easily Implement Your Own Custom Targets
 
 This is an implementation of a `Stream` target.
 
@@ -96,7 +96,7 @@ proc deserialize*[T](input: var Stream; output: var T) =
   read(input, output)
 ```
 
-### adhoc serialization to/from strings
+### Adhoc Serialization To/From Strings
 
 The `frosty/streams` module also provides an even simpler `freeze` and `thaw`
 API that uses `StringStream`.
