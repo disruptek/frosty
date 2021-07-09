@@ -72,7 +72,7 @@ proc serialize*[S](output: var S; input: MyObject) =
 
 proc deserialize*[S](input: var S; output: var MyObject) =
   var mine = MyObject(x: 1)
-  serialize(output, mine.y)
+  deserialize(input, mine.y)
 ```
 
 ### Easily Implement Your Own Custom Targets
