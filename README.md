@@ -7,7 +7,7 @@
 [![buy me a coffee](https://img.shields.io/badge/donate-buy%20me%20a%20coffee-orange.svg)](https://www.buymeacoffee.com/disruptek)
 [![Matrix](https://img.shields.io/matrix/disruptek:matrix.org?style=flat&logo=matrix)](https://matrix.to/#/#disruptek:matrix.org)
 
-Serialize native Nim types to strings, streams, or sockets.
+Serialize native Nim types to strings, streams, sockets, or anything else.
 
 ## Support
 
@@ -23,7 +23,7 @@ There are two operations: `freeze` and `thaw`.
 
 Each takes as input a _target_ and the _data_ to serialize or deserialize.
 
-#### `freeze` serializes any data to the target
+### `freeze` serializes any data to the target
 
 This example uses the `frosty/streams` target supplied in this repository.
 
@@ -43,7 +43,7 @@ freeze(handle, data)
 close handle
 ```
 
-#### `thaw` deserializes any data from a target
+### `thaw` deserializes any data from a target
 
 This example uses the `frosty/streams` target supplied in this repository.
 
@@ -59,7 +59,7 @@ assert data == MyObject(x: 4, y: "three")
 close handle
 ```
 
-#### customize serialization for your types
+### customize serialization for your types
 
 If you want to alter the serialization for a type, simply implement `serialize`
 and `deserialize` procedures for your type.
@@ -75,27 +75,28 @@ proc deserialize*[S](input: var S; output: var MyObject) =
   serialize(output, mine.y)
 ```
 
-#### implement your own custom targets
+### implement your own custom targets
 
-This is the complete implementation for the `frosty/streams` target.
+This is an implementation of a `Stream` target.
 
 ```nim
 import frosty
+export frosty
 
-proc serialize*(output: var Streamy; input: string; len: int) =
+proc serialize*(output: var Stream; input: string; len: int) =
   write(output, input)
 
-proc deserialize*(input: var Streamy; output: var string; len: int) =
+proc deserialize*(input: var Stream; output: var string; len: int) =
   readStr(input, len, output)
 
-proc serialize*[T](output: var Streamy; input: T) =
+proc serialize*[T](output: var Stream; input: T) =
   write(output, input)
 
-proc deserialize*[T](input: var Streamy; output: var T) =
+proc deserialize*[T](input: var Stream; output: var T) =
   read(input, output)
 ```
 
-#### adhoc serialization to/from strings
+### adhoc serialization to/from strings
 
 The `frosty/streams` module also provides an even simpler `freeze` and `thaw`
 API that uses `StringStream`.
