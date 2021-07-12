@@ -14,7 +14,7 @@ task test, "run unit tests":
   when defined(windows):
     exec "balls.cmd"
   else:
-    exec "balls"
+    exec "env GITHUB_ACTIONS=false balls"
 
 task demo, "generate benchmark":
   exec """demo docs/bench.svg "nim c --out=\$1 --gc:arc --define:danger tests/bench.nim""""

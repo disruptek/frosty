@@ -317,9 +317,9 @@ proc makeChunks(n: int): seq[MyType] =
                       # arrays
                       q: ["even", "odd"], r: [Three, Two, One],
                       # ref inheritance
-                      w: W(a: 23), x: X(a: 48, b: 59),
+                      w: W(a: n + 1), x: X(a: n + 4, b: n + 5),
                       # value inheritance
-                      y: Y(a: 23), z: Z(a: 48, b: 59),
+                      y: Y(a: n + 2), z: Z(a: n + 3, b: n + 6),
                       # variant objects
                       h: (VType(ignore: true, kind: Even, even: 11),
                           VType(kind: Odd, also: 3),
@@ -338,31 +338,26 @@ suite "stress test":
 
   block:
     ## read/write a lot of data
-    for mode in [fmWrite, fmRead]:
-      var fh = openFileStream(fn, mode)
-      try:
-        case mode
-        of fmWrite:
-          suite "writes":
-            block:
-              ## writing values to stream
-              fh.freeze vals
-          echo "file size in meg: ", fileSize(fn)
-        of fmRead:
-          suite "reads":
-            block:
-              ## reading values from stream
-              fh.thaw q
-            block:
-              ## verify that read data matches
-              check len(q) == len(vals)
-              for i in vals.low .. vals.high:
-                if hash(q[i]) != hash(vals[i]):
-                  checkpoint "index: ", i
-                  checkpoint " vals: ", vals[i]
-                  checkpoint "    q: ", q[i]
-                  fail"audit fail"
-        else:
-          discard
-      finally:
-        close fh
+    var fh = openFileStream(fn, fmWrite)
+    try:
+      fh.freeze vals
+    finally:
+      close fh
+
+    echo "file size in meg: ", fileSize(fn)
+
+    fh = openFileStream(fn, fmRead)
+    try:
+      fh.thaw q
+    finally:
+      close fh
+
+  block:
+    ## verify that read data matches
+    check len(q) == len(vals)
+    for i in vals.low .. vals.high:
+      if hash(q[i]) != hash(vals[i]):
+        checkpoint "index: ", i
+        checkpoint " vals: ", vals[i]
+        checkpoint "    q: ", q[i]
+        fail"audit fail"
