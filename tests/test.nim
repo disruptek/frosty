@@ -79,6 +79,8 @@ type
     n: Uri
     o: seq[int]
     p: Option[F]
+    q: array[G, string]
+    r: array[3, E]
     s: S
     t, u: int
     w: W
@@ -139,6 +141,9 @@ suite "frosty basics":
   roundTrip Z(a: 23, b: 59)
   ## seq of set
   roundTrip @[{One, Two}, {Two, Three}]
+  ## arrays
+  roundTrip [Three, One, Two]
+  roundTrip ["three", "one", "two"]
 
 const
   fn {.strdefine.} = "test-data.frosty"
@@ -248,6 +253,8 @@ proc hash(m: MyType): Hash =
   h = h !& hash(m.j)
   h = h !& hash(m.k)
   h = h !& hash(m.l)
+  h = h !& hash(m.q)
+  h = h !& hash(m.r)
   h = h !& hash(m.s)
   h = h !& hash(m.p)
   h = h !& hash(m.t)
@@ -307,6 +314,8 @@ proc makeChunks(n: int): seq[MyType] =
                       p: F(x: 44, y: 33.0).some,
                       i: @["one", "", "", "", "", "", "two"],
                       g: ("hello", 22), s: S("string " & spaces(n)),
+                      # arrays
+                      q: ["even", "odd"], r: [Three, Two, One],
                       # ref inheritance
                       w: W(a: 23), x: X(a: 48, b: 59),
                       # value inheritance
