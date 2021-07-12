@@ -12,7 +12,7 @@ skipDirs = @["tests"]       # so stupid...  who doesn't want tests?
 task test, "run unit tests":
   # nim bug https://github.com/nim-lang/Nim/issues/16661
   when defined(windows):
-    exec "balls.cmd"
+    exec "env GITHUB_ACTIONS=false balls.cmd"
   else:
     exec "env GITHUB_ACTIONS=false balls"
 
