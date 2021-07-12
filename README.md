@@ -18,7 +18,7 @@ Serialize native Nim types to strings, streams, sockets, or anything else.
 - variants
 - `gc:arc`
 - `gc:orc`
-- `gc:refc`
+- ~`gc:refc`~
 - ~`c++`~
 
 ## Usage
