@@ -16,6 +16,17 @@ type
     Read  = "deserialize"
     Write = "serialize"
 
+proc operation(n: NimNode): Op =
+  case n.kind
+  of nnkSym, nnkIdent, nnkOpenSymChoice:
+    case repr(n)
+    of "serialize":    result = Write
+    of "deserialize" : result = Read
+    else: error"unrecognized operation"
+  of CallNodes:
+    result = operation n[0]
+  else: error "unrecognized input: " & treeRepr(n)
+
 proc serialize[T](s: var Serializer; o: ref T)
 proc deserialize[T](s: var Serializer; o: var ref T)
 proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode
@@ -79,10 +90,15 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
     of nnkRecCase:
       let kind = node[0][0]
       result.insert 0:
-        genAst(call, s, o, kind, temp = nskTemp.genSym"kind", tipe = node[0][1]):
-          var temp: tipe
-          call(s, temp)
-          o.kind = temp
+        case call.operation
+        of Read:
+          genAst(call, s, o, kind,
+                 temp = nskTemp.genSym"kind", tipe = node[0][1]):
+            var temp: tipe
+            call(s, temp)
+            o.kind = temp
+        of Write:
+          newCall(call, s, o.dot kind)
       let kase = nnkCaseStmt.newTree(o.dot kind)
       for branch in node[1 .. ^1]:                # skip discriminator
         let clone = copyNimNode branch
