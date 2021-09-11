@@ -266,10 +266,10 @@ proc deserialize[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 # put 'em down here so we don't accidentally bind somewhere
 #
 
-macro serialize(s: var Serializer; o: typed): untyped =
+macro serialize*(s: var Serializer; o: typed): untyped =
   perform(Write, s, o)
 
-macro deserialize(s: var Serializer; o: var typed) =
+macro deserialize*(s: var Serializer; o: var typed) =
   perform(Read, s, o)
 
 proc freeze*[S, T](output: S; input: T) =
