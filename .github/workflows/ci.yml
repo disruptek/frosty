@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - master
-      - v1
     paths:
       - '**.cfg'
       - '**.nims'
@@ -31,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ['macos-latest', 'ubuntu-latest']
-        nim: ['devel']
+        nim: ['devel', 'version-1-6']
     name: '${{ matrix.os }} (${{ matrix.nim }})'
     runs-on: ${{ matrix.os }}
     steps:
