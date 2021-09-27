@@ -20,6 +20,7 @@ Serialize native Nim types to strings, streams, sockets, or anything else.
 - `gc:orc`
 - ~`gc:refc`~
 - ~`c++`~
+- [for broader support, use a prior frosty](https://github.com/disruptek/frosty/tree/v1)
 
 ## Usage
 
