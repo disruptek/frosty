@@ -27,8 +27,8 @@ proc operation(n: NimNode): Op =
     result = operation n[0]
   else: error "unrecognized input: " & treeRepr(n)
 
-proc serialize[T](s: var Serializer; o: ref T)
-proc deserialize[T](s: var Serializer; o: var ref T)
+proc serialize*[T](s: var Serializer; o: ref T)
+proc deserialize*[T](s: var Serializer; o: var ref T)
 proc forObject(s, o, tipe: NimNode; call: NimNode): NimNode
 proc forTuple(s: NimNode; o: NimNode; call: NimNode): NimNode
 proc writePrimitive(s: NimNode; o: NimNode): NimNode
@@ -257,10 +257,10 @@ proc readSequence(s: NimNode; o: NimNode): NimNode =
 #
 
 macro writeRefImpl[T](s: var Serializer; o: ref T) = writeRef(s, o)
-proc serialize[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
+proc serialize*[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
 
 macro readRefImpl[T](s: var Serializer; o: ref T) = readRef(s, o)
-proc deserialize[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
+proc deserialize*[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
 
 #
 # put 'em down here so we don't accidentally bind somewhere
