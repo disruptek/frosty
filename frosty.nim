@@ -74,6 +74,38 @@ template unbind(s: string): NimNode =
 template unbind(op: Op): NimNode =
   unbind $op
 
+proc asgnKind[T](target: var T, source: T) =
+  # This is a mandatory helper proc that allows to simply set value of the
+  # discriminant field without doing `{.push.}` and `{.pop.}` for field
+  # checks. Currently it is not possible to simply assign to `.kind` even
+  # inside of unchecked asign body, /unless/ we do push and pop (to disable
+  # runtime checks) or perform assign via extra helper proc.
+  #
+  # ```nim
+  # type
+  #   Requires {.requiresinit.} = object
+  #
+  #   Obj = object
+  #     case kind: bool
+  #       of true:
+  #         req: Requires
+  #
+  #       of false: discard
+  #
+  # {.push fieldChecks:off.}
+  #
+  # func build(inKind: bool): Obj =
+  #   result = Obj(kind: true, req: default(Requires))
+  #
+  #   {.cast(uncheckedAssign).}:
+  #     result.kind = inKind
+  #
+  # {.pop.}
+  #
+  # echo build(false)
+  # ````
+  target = source
+
 proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
   result = newStmtList()
   for index, node in n.pairs:
@@ -96,7 +128,9 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
                  temp = nskTemp.genSym"kind", tipe = node[0][1]):
             var temp: tipe
             call(s, temp)
-            o.kind = temp
+            {.cast(uncheckedAssign).}:
+              asgnKind(o.kind, temp)
+
         of Write:
           newCall(call, s, o.dot kind)
       let kase = nnkCaseStmt.newTree(o.dot kind)
