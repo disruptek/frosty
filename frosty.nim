@@ -74,6 +74,9 @@ template unbind(s: string): NimNode =
 template unbind(op: Op): NimNode =
   unbind $op
 
+proc asgnKind[T](target: var T, source: T) =
+  target = source
+
 proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
   result = newStmtList()
   for index, node in n.pairs:
@@ -96,7 +99,9 @@ proc eachField(n, s, o: NimNode; call: NimNode): NimNode =
                  temp = nskTemp.genSym"kind", tipe = node[0][1]):
             var temp: tipe
             call(s, temp)
-            o.kind = temp
+            {.cast(uncheckedAssign).}:
+              asgnKind(o.kind, temp)
+            # o.kind = temp
         of Write:
           newCall(call, s, o.dot kind)
       let kase = nnkCaseStmt.newTree(o.dot kind)
@@ -194,7 +199,7 @@ proc writeRef(s, o: NimNode): NimNode =
         s.writer o[]
 
 proc readRef(s, o: NimNode): NimNode =
-  genAst(s, o, reader = unbind Read):
+  result = genAst(s, o, reader = unbind Read):
     var g: int
     s.reader g
     if g == 0:
@@ -257,7 +262,8 @@ proc readSequence(s: NimNode; o: NimNode): NimNode =
 #
 
 macro writeRefImpl[T](s: var Serializer; o: ref T) = writeRef(s, o)
-proc serialize*[T](s: var Serializer; o: ref T) = writeRefImpl(s, o)
+proc serialize*[T](s: var Serializer; o: ref T) =
+  writeRefImpl(s, o)
 
 macro readRefImpl[T](s: var Serializer; o: ref T) = readRef(s, o)
 proc deserialize*[T](s: var Serializer; o: var ref T) = readRefImpl(s, o)
