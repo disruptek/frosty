@@ -145,6 +145,18 @@ suite "frosty basics":
   roundTrip [Three, One, Two]
   roundTrip ["three", "one", "two"]
 
+  ## make sure some things error properly
+  block:
+    let d = ("pigs", 43, 22.0, Three)
+    var s = freeze d
+    setLen(s, s.len - 3)
+    expect ThawError:
+      let x = thaw[typeOf d](s)
+
+    let q = s
+    when compiles freeze(q, d):
+      fail "immutable strings shouldn't be freezable to"
+
 const
   fn {.strdefine.} = "test-data.frosty"
 
