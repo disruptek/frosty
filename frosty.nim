@@ -10,9 +10,9 @@ type
   FrostyError = object of ValueError
     ex: ref Exception
 
-  FreezeError* = FrostyError ##
+  FreezeError* = object of FrostyError ##
   ## An error raised during `freeze`.
-  ThawError* = FrostyError   ##
+  ThawError* = object of FrostyError   ##
   ## An error raised during `thaw`.
 
   Op = enum
