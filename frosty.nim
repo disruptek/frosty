@@ -22,6 +22,10 @@ type
 proc `$`*(err: ref FrostyError): string =
   $err.name & ": " & err.msg
 
+proc origin*(err: ref FrostyError): ref Exception =
+  ## Retrieve the error that precipitated the `FrostyError`.
+  err.ex
+
 proc operation(n: NimNode): Op =
   case n.kind
   of nnkSym, nnkIdent, nnkOpenSymChoice:

@@ -151,10 +151,23 @@ suite "frosty basics":
     var s = freeze d
     setLen(s, s.len - 3)
     expect ThawError:
-      let x = thaw[typeOf d](s)
+      let x {.used.} = thaw[typeOf d](s)
 
-    let q = s
-    when compiles freeze(q, d):
+  ## make sure we can recover the original error
+  block:
+    let d = ("pigs", 43, 22.0, Three)
+    var s = freeze d
+    setLen(s, s.len - 3)
+    try:
+      let y {.used.} = thaw[typeOf d](s)
+    except ThawError as e:
+      check e.origin is ref Exception
+      check $e.origin.name == "IOError"
+
+  ## make sure certain things fail at compile-time
+  block:
+    let q = "hello"
+    when compiles freeze(q, "goodbye"):
       fail "immutable strings shouldn't be freezable to"
 
 const
