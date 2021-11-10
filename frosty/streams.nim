@@ -6,17 +6,30 @@ export frosty
 type
   Streamy = Stream or StringStream
 
+template rewriteIOErrorAs(exception: typed; logic: untyped): untyped =
+  try:
+    logic
+  except IOError as e:
+    raise frostyError(exception, e)
+
 proc serialize*(output: var Streamy; input: string; len: int) =
-  write(output, input)
+  rewriteIOErrorAs FreezeError:
+    write(output, input)
 
 proc deserialize*(input: var Streamy; output: var string; len: int) =
-  readStr(input, len, output)
+  rewriteIOErrorAs ThawError:
+    readStr(input, len, output)
 
 proc serialize*[T](output: var Streamy; input: T) =
-  write(output, input)
+  rewriteIOErrorAs FreezeError:
+    write(output, input)
 
 proc deserialize*[T](input: var Streamy; output: var T) =
-  read(input, output)
+  rewriteIOErrorAs ThawError:
+    read(input, output)
+
+proc freeze*[T](result: string; source: T)
+  {.error: "cannot freeze into an immutable string".}
 
 proc freeze*[T](result: var string; source: T) =
   ## Write `source` into `result`.

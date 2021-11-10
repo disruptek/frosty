@@ -7,14 +7,24 @@ type
     serial: T
     ptrs: Table[int, pointer]
 
-  FreezeError* = ValueError  ##
+  FrostyError = object of ValueError
+    ex: ref Exception
+
+  FreezeError* = object of FrostyError ##
   ## An error raised during `freeze`.
-  ThawError* = ValueError    ##
+  ThawError* = object of FrostyError   ##
   ## An error raised during `thaw`.
 
   Op = enum
     Read  = "deserialize"
     Write = "serialize"
+
+proc `$`*(err: ref FrostyError): string =
+  $err.name & ": " & err.msg
+
+proc origin*(err: ref FrostyError): ref Exception =
+  ## Retrieve the error that precipitated the `FrostyError`.
+  err.ex
 
 proc operation(n: NimNode): Op =
   case n.kind
@@ -317,3 +327,17 @@ proc thaw*[S, T](input: S; output: var T) =
   var s: Serializer[S]
   s.serial = input
   deserialize(s, output)
+
+template frostyError*(tipe: typedesc[FreezeError or ThawError];
+                      exc: ref Exception; mess = ""): auto =
+  var e = (ref tipe)(ex: exc)
+  e.msg =
+    if not exc.isNil and mess == "":
+      $exc.name & ": " & exc.msg
+    else:
+      mess
+  e
+
+template frostyError*(tipe: typedesc[FreezeError or ThawError];
+                      msg = ""): auto =
+  frostyError(tipe, nil, msg)
