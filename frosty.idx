@@ -1,0 +1,12 @@
+FreezeError	frosty.html#FreezeError	frosty: FreezeError	
+ThawError	frosty.html#ThawError	frosty: ThawError	
+`$`	frosty.html#$,ref.FrostyError	frosty: `$`(err: ref FrostyError): string	
+origin	frosty.html#origin,ref.FrostyError	frosty: origin(err: ref FrostyError): ref Exception	
+serialize	frosty.html#serialize,Serializer,ref.T	frosty: serialize[T](s: var Serializer; o: ref T)	
+deserialize	frosty.html#deserialize,Serializer,ref.T	frosty: deserialize[T](s: var Serializer; o: var ref T)	
+serialize	frosty.html#serialize.m,Serializer,typed	frosty: serialize(s: var Serializer; o: typed): untyped	
+deserialize	frosty.html#deserialize.m,Serializer,typed	frosty: deserialize(s: var Serializer; o: var typed)	
+freeze	frosty.html#freeze,S,T	frosty: freeze[S, T](output: S; input: T)	
+thaw	frosty.html#thaw,S,T	frosty: thaw[S, T](input: S; output: var T)	
+frostyError	frosty.html#frostyError.t,typedesc[],ref.Exception,string	frosty: frostyError(tipe: typedesc[FreezeError or ThawError]; exc: ref Exception;\n            mess = &quot;&quot;): auto	
+frostyError	frosty.html#frostyError.t,typedesc[],string	frosty: frostyError(tipe: typedesc[FreezeError or ThawError]; msg = &quot;&quot;): auto	
