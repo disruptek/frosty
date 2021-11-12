@@ -10,14 +10,15 @@ import std/random
 import std/json
 import std/options
 
-import balls
+import pkg/balls
 import frosty/streams as brrr
 
-template testFreeze(body: untyped): untyped =
+template testFreeze(body: typed): untyped =
   var ss = newStringStream()
+  let b = body
   try:
-    freeze(ss, body)
-    freeze(ss, body)
+    freeze(ss, b)
+    freeze(ss, b)
     setPosition(ss, 0)
     readAll ss
   finally:

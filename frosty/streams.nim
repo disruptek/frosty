@@ -1,7 +1,7 @@
 import std/streams
 
 import frosty
-export frosty
+export freeze, FreezeError, thaw, ThawError, origin
 
 type
   Streamy = Stream or StringStream
